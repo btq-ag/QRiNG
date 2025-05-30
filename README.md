@@ -1,7 +1,7 @@
 # QRiNG: Quantum Random Number Generator Protocol
 ###### A hybrid quantum-blockchain protocol for verifiable quantum random number generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
 
-![QKD Process Animation](Logos/QRiNG_light.png)
+![QKD Process Animation](Logos/QRiNG_extended_dark.png)
 
 ## Objective
 
