@@ -66,56 +66,34 @@ The `simulatorQRiNG.py` implements the complete QKD simulation with network cons
 ```python
 class QRiNGSimulator:
     def __init__(self, n_participants=5, n_qubits=100, consensus_threshold=0.67):
-        """
-        Initialize QRiNG simulator with quantum and network parameters
-        
-        Args:
-            n_participants: Number of network participants
-            n_qubits: Number of qubits for quantum measurement
-            consensus_threshold: Minimum agreement threshold for consensus
-        """
+        """Initialize QRiNG simulator with quantum and network parameters"""
         self.n_participants = n_participants
         self.n_qubits = n_qubits
         self.consensus_threshold = consensus_threshold
-        self.participants = self._initialize_participants()
-        self.quantum_states = []
-        self.measurement_results = []
+        # ...initialization code...
         
     def generate_quantum_bitstring(self, participant_id):
-        """
-        Simulate quantum measurement process for a participant
-        
-        Returns:
-            dict: Contains bitstring, bases, measurement_metadata
-        """
+        """Simulate quantum measurement process for a participant"""
         # Prepare quantum states in superposition
         bases = np.random.choice(['computational', 'hadamard'], size=self.n_qubits)
         measurements = np.random.choice(['standard', 'hadamard'], size=self.n_qubits)
         
         # Simulate quantum measurements with Born rule probabilities
         bitstring = []
-        measurement_uncertainty = []
-        
         for i in range(self.n_qubits):
             if bases[i] == measurements[i]:
-                # Same basis: deterministic outcome
-                bit = np.random.choice([0, 1])  # Simulated prepared state
+                bit = np.random.choice([0, 1])  # Same basis: deterministic
                 uncertainty = 0.0
             else:
-                # Different basis: random outcome due to quantum superposition
-                bit = np.random.choice([0, 1])
-                uncertainty = 0.5  # Maximum quantum uncertainty
-            
-            bitstring.append(bit)
-            measurement_uncertainty.append(uncertainty)
+                bit = np.random.choice([0, 1])  # Different basis: random
+                uncertainty = 0.5
+            # ...measurement processing...
         
         return {
             'participant_id': participant_id,
             'bitstring': bitstring,
             'bases_used': bases,
-            'measurements': measurements,
-            'uncertainty': np.mean(measurement_uncertainty),
-            'timestamp': time.time()
+            # ...additional metadata...
         }
 ```
 
@@ -125,79 +103,41 @@ The `emulatorQRiNG.py` exactly replicates the Ethereum smart contract functional
 ```python
 class QRiNGEmulator:
     def __init__(self):
-        """
-        Initialize QRiNG smart contract emulator with exact Solidity behavior
-        """
+        """Initialize QRiNG smart contract emulator with exact Solidity behavior"""
         # Contract state variables (matching originalQRiNG.sol)
         self.random_numbers = {}  # mapping(uint256 => uint256)
         self.timestamps = {}      # mapping(uint256 => uint256)  
         self.validators = {}      # mapping(address => bool)
         self.owner = "0x1234567890123456789012345678901234567890"
-        self.consensus_threshold = 3
-        self.next_request_id = 1
-        
-        # Gas tracking
-        self.total_gas_used = 0
-        self.gas_prices = {
-            'SSTORE': 20000,    # Storage write
-            'SLOAD': 800,       # Storage read
-            'ADD': 3,           # Addition
-            'COMPARISON': 3,    # Comparison operations
-            'CALL': 700,        # Function call
-        }
+        # ...additional state variables...
         
     def generate_random_number(self, quantum_data, sender_address):
-        """
-        Emulate the generateRandomNumber function from originalQRiNG.sol
-        
-        Args:
-            quantum_data: Quantum measurement results
-            sender_address: Address of the requesting participant
-            
-        Returns:
-            dict: Transaction result with gas usage and random number
-        """
+        """Emulate the generateRandomNumber function from originalQRiNG.sol"""
         gas_used = 0
         
         # Function entry gas cost
         gas_used += self.gas_prices['CALL']
         
-        # Generate request ID
+        # Generate request ID and process quantum data
         request_id = self.next_request_id
-        gas_used += self.gas_prices['SLOAD']  # Read next_request_id
-        
         self.next_request_id += 1
-        gas_used += self.gas_prices['SSTORE']  # Write next_request_id
         
-        # Process quantum data - convert bitstring to integer
+        # Convert bitstring to integer
         if isinstance(quantum_data.get('bitstring'), list):
-            # Convert binary list to integer
             random_value = 0
             for i, bit in enumerate(quantum_data['bitstring']):
                 random_value += bit * (2 ** i)
-                gas_used += self.gas_prices['ADD']  # Each bit processing
-        else:
-            random_value = hash(str(quantum_data)) % (2**256)
-            gas_used += self.gas_prices['ADD']
+                # ...gas calculation...
         
-        # Store random number
+        # Store results and return
         self.random_numbers[request_id] = random_value
-        gas_used += self.gas_prices['SSTORE']
-        
-        # Store timestamp
         self.timestamps[request_id] = int(time.time())
-        gas_used += self.gas_prices['SSTORE']
-        
-        # Update total gas used
-        self.total_gas_used += gas_used
         
         return {
             'request_id': request_id,
             'random_number': random_value,
             'gas_used': gas_used,
-            'total_gas': self.total_gas_used,
-            'timestamp': self.timestamps[request_id],
-            'success': True
+            # ...additional results...
         }
 ```
 
@@ -206,15 +146,7 @@ The protocol implements a sophisticated consensus mechanism for validating quant
 
 ```python
 def execute_consensus_round(self, measurement_results):
-    """
-    Execute consensus mechanism for quantum measurement validation
-    
-    Args:
-        measurement_results: List of quantum measurements from participants
-        
-    Returns:
-        dict: Consensus results with validation status
-    """
+    """Execute consensus mechanism for quantum measurement validation"""
     consensus_data = {
         'round_id': len(self.consensus_history),
         'participants': len(measurement_results),
@@ -231,16 +163,9 @@ def execute_consensus_round(self, measurement_results):
             if i != j:
                 # Calculate Hamming distance between bitstrings
                 hamming_dist = self._calculate_hamming_distance(
-                    result_i['bitstring'], 
-                    result_j['bitstring']
+                    result_i['bitstring'], result_j['bitstring']
                 )
-                
-                # Quantum measurements should have specific correlation patterns
-                expected_correlation = 0.5  # For random quantum measurements
-                measured_correlation = 1 - (hamming_dist / len(result_i['bitstring']))
-                
-                # Validation score based on quantum theory expectations
-                validation_score = 1 - abs(measured_correlation - expected_correlation)
+                # ...correlation analysis...
                 validation_matrix[i][j] = validation_score
     
     # Determine consensus based on validation scores
@@ -249,22 +174,13 @@ def execute_consensus_round(self, measurement_results):
     
     if np.sum(valid_participants) >= self.consensus_threshold * len(measurement_results):
         # Consensus achieved - combine valid measurements
-        valid_results = [measurement_results[i] for i in range(len(measurement_results)) 
-                        if valid_participants[i]]
-        
-        # XOR combination of valid bitstrings for final randomness
-        final_bitstring = valid_results[0]['bitstring'].copy()
-        for result in valid_results[1:]:
-            final_bitstring = [a ^ b for a, b in zip(final_bitstring, result['bitstring'])]
-        
+        # ...XOR combination logic...
         consensus_data.update({
             'final_bitstring': final_bitstring,
             'consensus_achieved': True,
-            'valid_participants': np.sum(valid_participants),
-            'validation_scores': mean_validation_scores.tolist()
+            # ...additional consensus data...
         })
     
-    self.consensus_history.append(consensus_data)
     return consensus_data
 ```
 
@@ -273,9 +189,7 @@ The `visualizationQRiNG.py` creates professional animated visualizations of the 
 
 ```python
 def create_qkd_process_animation(self, save_path):
-    """
-    Create animated visualization of the QKD process with quantum states
-    """
+    """Create animated visualization of the QKD process with quantum states"""
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle('QRiNG: Quantum Key Distribution Process', fontsize=16, fontweight='bold')
     
@@ -294,40 +208,18 @@ def create_qkd_process_animation(self, save_path):
         
         # Plot 1: Quantum State Preparation
         self._plot_quantum_states(ax1, quantum_states, frame)
-        ax1.set_title('Quantum State Preparation', fontweight='bold')
-        ax1.set_ylabel('Quantum Amplitude')
-        
         # Plot 2: Measurement Process  
         self._plot_measurement_process(ax2, measurement_results, frame)
-        ax2.set_title('Quantum Measurement', fontweight='bold')
-        ax2.set_ylabel('Measurement Outcome')
-        
         # Plot 3: Basis Comparison
         self._plot_basis_comparison(ax3, quantum_states, measurement_results, frame)
-        ax3.set_title('Basis Reconciliation', fontweight='bold')
-        ax3.set_xlabel('Qubit Index')
-        ax3.set_ylabel('Basis Match')
-        
         # Plot 4: Random Bitstring Generation
         self._plot_bitstring_generation(ax4, measurement_results, frame)
-        ax4.set_title('Random Bitstring Extraction', fontweight='bold')
-        ax4.set_xlabel('Qubit Index')
-        ax4.set_ylabel('Random Bit Value')
         
-        plt.tight_layout()
-        
-        # Save frame
-        buffer = io.BytesIO()
-        plt.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
-        buffer.seek(0)
-        frame_image = Image.open(buffer)
-        frames.append(frame_image)
-        buffer.close()
+        # ...frame processing and GIF creation...
     
     # Create and save GIF
     frames[0].save(save_path, save_all=True, append_images=frames[1:], 
                    duration=50, loop=0, optimize=True)
-    plt.close()
 ```
 
 ### 5. Smart Contract Integration
@@ -335,9 +227,7 @@ Demonstrates the complete integration between quantum measurements and blockchai
 
 ```python
 def demonstrate_full_protocol(self):
-    """
-    Demonstrate the complete QRiNG protocol from quantum measurement to blockchain
-    """
+    """Demonstrate the complete QRiNG protocol from quantum measurement to blockchain"""
     print("=== QRiNG Protocol Demonstration ===")
     
     # Step 1: Generate quantum measurements
@@ -352,7 +242,6 @@ def demonstrate_full_protocol(self):
     print("\n2. Executing consensus validation...")
     consensus_result = self.execute_consensus_round(measurement_results)
     print(f"   Consensus achieved: {consensus_result['consensus_achieved']}")
-    print(f"   Valid participants: {consensus_result.get('valid_participants', 0)}")
     
     # Step 3: Store in blockchain emulator
     if consensus_result['consensus_achieved']:
@@ -361,10 +250,6 @@ def demonstrate_full_protocol(self):
             {'bitstring': consensus_result['final_bitstring']},
             f"0x{''.join(['%02x' % random.randint(0, 255) for _ in range(20)])}"
         )
-        
-        print(f"   Transaction ID: {blockchain_result['request_id']}")
-        print(f"   Random Number: {blockchain_result['random_number']}")
-        print(f"   Gas Used: {blockchain_result['gas_used']}")
         
         return {
             'quantum_measurements': measurement_results,
@@ -437,7 +322,6 @@ contract QRiNG {
     uint256 private nextRequestId;
     
     event RandomNumberGenerated(uint256 indexed requestId, uint256 randomNumber, uint256 timestamp);
-    event ValidatorAdded(address validator);
     
     function generateRandomNumber(bytes memory quantumData) public returns (uint256) {
         uint256 requestId = nextRequestId++;
@@ -452,7 +336,7 @@ contract QRiNG {
     
     function validateMeasurement(uint256 requestId, bytes memory proof) public view returns (bool) {
         require(validators[msg.sender], "Not authorized validator");
-        // Quantum measurement validation logic
+        // ...quantum measurement validation logic...
         return true;
     }
 }
