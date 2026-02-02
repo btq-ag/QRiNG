@@ -21,11 +21,11 @@ The goal is to demonstrate a complete quantum random number generation ecosystem
 
 ### Quantum Key Distribution (QKD) Foundation
 
-The QRiNG protocol builds upon the BB84 quantum key distribution protocol, where quantum states are prepared in superposition and measured to generate random bitstrings. Qubits are initialized in one of two conjugate bases: the computational basis {|0⟩, |1⟩} or the Hadamard basis {|+⟩, |−⟩}. These bases are related by the Hadamard transform:
+The QRiNG protocol builds upon the BB84 quantum key distribution protocol, where quantum states are prepared in superposition and measured to generate random bitstrings. Qubits are initialized in one of two conjugate bases: the computational basis {|0⟩, |1⟩} or the Hadamard basis {|+⟩, |−⟩}. These bases are related by the Hadamard gate $H$, a unitary transformation defined as:
 
-$$H = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 & 1 \\ 1 & -1 \end{pmatrix}$$
+$$H = \frac{1}{\sqrt{2}} \begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}$$
 
-which maps |+⟩ = (|0⟩ + |1⟩)/√2 and |−⟩ = (|0⟩ − |1⟩)/√2. When measuring a state prepared in one basis using the conjugate basis, the Heisenberg uncertainty principle guarantees randomness. For example, measuring |0⟩ in the Hadamard basis yields $P(+) = P(-) = \frac{1}{2}$, producing a perfectly random bit.
+Applying $H$ to the computational basis states yields |+⟩ = (|0⟩ + |1⟩)/√2 and |−⟩ = (|0⟩ − |1⟩)/√2. When measuring a state prepared in one basis using the conjugate basis, the Heisenberg uncertainty principle guarantees randomness. For example, measuring |0⟩ in the Hadamard basis yields $P(+) = P(-) = 1/2$, producing a perfectly random bit.
 
 Security derives from the quantum no-cloning theorem, which states that no physical process can duplicate an arbitrary quantum state. Any eavesdropping attempt necessarily disturbs the quantum channel, introducing a detectable error rate ε ≥ 1/4 per intercepted qubit.
 
@@ -56,64 +56,125 @@ This construction preserves entropy—if at least one honest node contributes tr
 ## Code Functionality
 
 ### 1. Quantum Random Number Generation and Simulation
-The `simulatorQRiNG.py` implements the complete QKD simulation with network consensus. Each node generates bitstrings by simulating quantum measurement on qubits in superposition, incorporating realistic effects like measurement bias $q_b \sim \mathcal{N}(0.5, 0.05)$ and entanglement correlations modeled via $P(b_k = 1) = q_b + \gamma \sin(k\pi/4)(2b_{k-1} - 1)$ where γ = 0.15.
+The `simulatorQRiNG.py` implements the complete QKD simulation with network consensus. Each node generates bitstrings by simulating quantum measurement on qubits prepared in superposition, incorporating realistic quantum effects. The measurement bias parameter $q_b \sim \mathcal{N}(0.5, 0.05)$ models device imperfections, while entanglement correlations follow $P(b_k = 1) = q_b + \gamma \sin(k\pi/4)(2b_{k-1} - 1)$ with correlation factor γ = 0.15. The simulator also tracks vote counts and identifies honest nodes through the consensus protocol.
 
 ```python
 class QRiNGSimulator:
     def __init__(self, num_nodes=6, bitstring_length=8, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
         self.num_nodes = num_nodes
         self.bitstring_length = bitstring_length
+        self.bitstrings = {}
+        self.vote_counts = np.zeros(num_nodes)
+        self.honest_nodes = []
         self._generate_quantum_bitstrings()
+    
+    def calculate_bitstring_similarity(self, node1, node2):
+        """Calculate similarity between two nodes' bitstrings"""
+        matches = np.sum(self.bitstrings[node1] == self.bitstrings[node2])
+        return matches
 ```
 
 ### 2. Blockchain Smart Contract Emulation
-The `emulatorQRiNG.py` replicates Ethereum smart contract functionality in Python for testing without deployment costs. It maintains complete contract state (voters, bitstrings, vote tallies) and computes gas costs via $G_{\text{total}} = G_{\text{base}} + n \cdot G_{\text{voter}} + n \cdot \ell \cdot G_{\text{storage}}$ where $G_{\text{base}} = 21000$, $G_{\text{voter}} \approx 50000$, and $G_{\text{storage}} \approx 20$.
+The `emulatorQRiNG.py` replicates Ethereum smart contract functionality in Python, enabling testing and validation without deployment costs. The emulator maintains complete contract state including voter registrations, bitstring storage, voting status, and vote tallies. Gas costs follow the Ethereum model: $G_{\text{total}} = G_{\text{base}} + n \cdot G_{\text{voter}} + n \cdot \ell \cdot G_{\text{storage}}$ where $G_{\text{base}} = 21000$, $G_{\text{voter}} \approx 50000$, and $G_{\text{storage}} \approx 20$ per bit. Transaction logging provides a complete audit trail for debugging and verification.
 
 ```python
 class QRiNGEmulator:
     def __init__(self, bitstring_length=6):
-        self.voters = []          # Array of Voter structs
-        self.admin = None         # Contract administrator
-        self.voting_active = False
-        self.transaction_log = [] # Audit trail
+        self.voters = []           # Array of Voter structs
+        self.admin = None          # Contract administrator address
+        self.voting_active = False # Voting phase flag
+        self.counter = []          # 2D array for bitstrings
+        self.transaction_log = []  # Complete audit trail
+        self.gas_consumption = {}  # Gas tracking per function
+    
+    def add_new_string(self, new_string, caller_address):
+        """Store quantum bitstrings in contract storage"""
+        gas_used = 21000 + len(new_string) * len(new_string[0]) * 20
+        self.counter = [list(bitstring) for bitstring in new_string]
+        self._log_transaction('addNewString', caller_address, gas_used)
+        return True
 ```
 
 ### 3. Consensus Mechanism Implementation
-The protocol implements Byzantine fault-tolerant consensus for validating quantum measurements. Each node computes pairwise similarity $S_{ij} = \sum_{k=1}^{\ell} \mathbb{1}[b_i^{(k)} = b_j^{(k)}]$ and votes for nodes where $S_{ij} > \ell/2$. Nodes with $\text{VoteCount} > n/2$ are classified as honest, tolerating up to $\lfloor(n-1)/3\rfloor$ Byzantine nodes. The final output $R = \bigoplus_{j \in V_{\text{honest}}} \mathbf{b}_j$ preserves entropy if at least one honest node contributes true randomness.
+The protocol implements Byzantine fault-tolerant consensus for validating quantum measurements and identifying honest participants. Each node computes pairwise similarity scores $S_{ij} = \sum_{k=1}^{\ell} \mathbb{1}[b_i^{(k)} = b_j^{(k)}]$ against all other nodes. When $S_{ij} > \ell/2$, the checking node casts a vote for the target as honest. After all validations complete, nodes with $\text{VoteCount} > n/2$ are classified as honest, providing tolerance against up to $\lfloor(n-1)/3\rfloor$ Byzantine adversaries. The final random output $R = \bigoplus_{j \in V_{\text{honest}}} \mathbf{b}_j$ preserves full entropy if at least one honest node contributes true quantum randomness.
 
 ```python
 def perform_consensus_check(self, checking_node):
+    """Execute consensus validation from one node's perspective"""
+    if self.has_voted[checking_node]:
+        return False
+    
     threshold = self.bitstring_length // 2
     for target_node in self.nodes:
         if target_node != checking_node:
             matches = self.calculate_bitstring_similarity(checking_node, target_node)
             if matches > threshold:
                 self.vote_counts[target_node] += 1
+    
+    self.has_voted[checking_node] = True
+    return True
+
+def generate_final_random_number(self):
+    """XOR aggregate honest nodes' bitstrings"""
+    final_bits = np.zeros(self.bitstring_length, dtype=int)
+    for node in self.honest_nodes:
+        final_bits = final_bits ^ self.bitstrings[node]
+    return final_bits
 ```
 
 ### 4. Advanced Visualization Suite
-The `visualizationQRiNG.py` creates animated visualizations of the complete protocol lifecycle. Quantum state evolution under decoherence follows $|\psi(t)\rangle \propto e^{-t/T_2}(\cos(\omega t)|0\rangle + \sin(\omega t)|1\rangle)$. Network topology displays color-coded node status with oscillating quantum channel intensities $\alpha = (1 + \sin(\omega t))/2$. Statistical displays include similarity heatmaps and bit frequency convergence to $P(1) = 0.5$.
+The `visualizationQRiNG.py` creates professional animated visualizations demonstrating the complete protocol lifecycle. Quantum state evolution under decoherence follows $|\psi(t)\rangle \propto e^{-t/T_2}(\cos(\omega t)|0\rangle + \sin(\omega t)|1\rangle)$ where $T_2$ is the coherence time. Network topology renders nodes in circular layout with color-coded status (green = honest, red = dishonest) and oscillating quantum channel intensities $\alpha = (1 + \sin(\omega t))/2$. Real-time statistical displays show similarity heatmaps $S_{ij}$, vote distributions, and bit frequency convergence toward the theoretical expectation $P(1) = 0.5$.
 
 ```python
 class QRiNGVisualizer:
     def __init__(self, output_dir="../Plots"):
-        self.colors = {'quantum': '#6B73FF', 'honest': '#00FF88', 'dishonest': '#FF6B6B'}
+        self.output_dir = output_dir
+        self.colors = {
+            'quantum': '#6B73FF',
+            'honest': '#00FF88', 
+            'dishonest': '#FF6B6B',
+            'active': '#FFD93D'
+        }
+    
+    def animate_qkd_process(self, save_path):
+        """Animate quantum key distribution between network nodes"""
+        simulator = QRiNGSimulator(num_nodes=4, bitstring_length=6, seed=42)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        # ... animation logic for 60 frames at 8 FPS
     
     def generate_all_animations(self):
-        # Creates: qkd_process.gif, consensus_mechanism.gif, smart_contract_execution.gif
+        """Generate complete animation suite"""
+        self.animate_qkd_process("qkd_process.gif")
+        self.animate_consensus_mechanism("consensus_mechanism.gif")
+        self.animate_smart_contract_execution("smart_contract_execution.gif")
 ```
 
 ### 5. Smart Contract Integration
-Demonstrates full protocol integration across five phases: bitstring upload ($G \approx 25,000$ gas), address registration ($G \approx 50,000n$), consensus checking ($G \approx 5,000n^2$), voting termination, and random extraction via XOR. Events `VoterRegistered` and `VotingEnded` enable off-chain monitoring.
+The integration demonstrates the complete protocol lifecycle across five phases, each with specific gas costs and cryptographic guarantees. Phase 1 uploads quantum bitstrings ($G \approx 25,000$ gas), Phase 2 registers voter addresses ($G \approx 50,000n$), Phase 3 executes pairwise consensus checks ($G \approx 5,000n^2$), Phase 4 terminates voting, and Phase 5 extracts the final random number via XOR aggregation. Contract events `VoterRegistered` and `VotingEnded` enable off-chain monitoring and provide cryptographic attestation of each protocol step.
 
 ```python
-# Complete protocol execution flow
-emulator.add_new_string(bitstrings, admin)   # Phase 1
-emulator.set_addresses(addresses, admin)     # Phase 2  
-for i, addr in enumerate(addresses):         # Phase 3
-    emulator.check(i, addr)
-emulator.end_voting(admin)                   # Phase 4
-random_bits = emulator.random_number(admin)  # Phase 5
+# Complete protocol execution demonstrating full lifecycle
+def run_full_protocol(bitstrings, addresses, admin):
+    emulator = QRiNGEmulator(bitstring_length=6)
+    
+    # Phase 1: Upload quantum-generated bitstrings
+    emulator.add_new_string(bitstrings, admin)
+    
+    # Phase 2: Register participant addresses
+    emulator.set_addresses(addresses, admin)
+    
+    # Phase 3: Execute pairwise consensus validation
+    for i, addr in enumerate(addresses):
+        emulator.check(i, addr)
+    
+    # Phase 4: Terminate voting phase
+    emulator.end_voting(admin)
+    
+    # Phase 5: Extract final quantum random number
+    random_bits = emulator.random_number(admin)
+    return random_bits
 ```
 
 ## Results
@@ -213,36 +274,6 @@ contract QRiNG {
 
 > [!IMPORTANT]
 > The quantum randomness generated by this protocol is cryptographically secure only when implemented with genuine quantum hardware. Classical simulation provides educational value but not true quantum security guarantees.
-
-## File Structure
-
-```
-QRiNG/
-├── README.md                          # This comprehensive documentation
-├── Code/
-│   ├── originalQRiNG.sol             # Ethereum smart contract (115 lines)
-│   ├── simulatorQRiNG.py             # QKD simulation & consensus (573 lines)
-│   ├── emulatorQRiNG.py              # Smart contract emulator (647 lines)
-│   ├── visualizationQRiNG.py         # Animation suite (complete)
-│   ├── exampleStatic.py              # Visualization standards reference
-│   └── exampleAnimation.py           # Animation standards reference
-├── Plots/
-│   ├── qkd_process.gif               # QKD protocol animation
-│   ├── smart_contract_execution.gif  # Blockchain integration animation
-│   ├── qring_simulator_network.png   # Network topology visualization
-│   ├── qring_simulator_quantum.png   # Quantum states analysis
-│   └── qring_emulator_execution.png  # Gas usage and performance metrics
-├── Archive/
-│   ├── QRiNG_Blogpost.txt            # Protocol background and motivation
-│   ├── QRiNG_Demo.txt                # Technical demonstration details
-│   ├── QRiNG_Equations.txt           # Mathematical formulations
-│   ├── QRiNG_LLM_Description.txt     # AI-generated protocol analysis
-│   ├── QRiNG_Notion.txt              # Development notes and insights
-│   ├── QRiNG_Video1_Transcription.txt # Educational video content
-│   └── QRiNG_Video2_Transcription.txt # Advanced concepts explanation
-└── Instructions/
-    └── [Project requirements and specifications]
-```
 
 ---
 
