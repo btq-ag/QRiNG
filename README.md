@@ -23,7 +23,7 @@ The goal is to demonstrate a complete quantum random number generation ecosystem
 
 The QRiNG protocol builds upon the BB84 quantum key distribution protocol, where quantum states are prepared in superposition and measured to generate random bitstrings. Qubits are initialized in one of two conjugate bases: the computational basis {|0⟩, |1⟩} or the Hadamard basis {|+⟩, |−⟩}. These bases are related by the Hadamard gate $H$, a unitary transformation defined as:
 
-$$H = \frac{1}{\sqrt{2}} \begin{bmatrix} 1 & 1 \\ 1 & -1 \end{bmatrix}$$
+$$H = \frac{1}{\sqrt{2}} \begin{pmatrix} 1 & 1 \\\ 1 & -1 \end{pmatrix}$$
 
 Applying $H$ to the computational basis states yields |+⟩ = (|0⟩ + |1⟩)/√2 and |−⟩ = (|0⟩ − |1⟩)/√2. When measuring a state prepared in one basis using the conjugate basis, the Heisenberg uncertainty principle guarantees randomness. For example, measuring |0⟩ in the Hadamard basis yields $P(+) = P(-) = 1/2$, producing a perfectly random bit.
 
