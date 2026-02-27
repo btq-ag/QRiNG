@@ -1,10 +1,12 @@
 # QRiNG: Quantum Random Number Generator Protocol
 ###### A hybrid quantum-blockchain protocol for verifiable quantum random number generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
 
-![CI](https://github.com/btq-ag/QRiNG/actions/workflows/ci.yml/badge.svg)
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![pip install](https://img.shields.io/badge/pip%20install-e%20.-brightgreen)
+<p align="center">
+  <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI">
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/pip%20install--e%20.-brightgreen" alt="pip install -e .">
+</p>
 
 ![QKD Process Animation](Logos/QRiNG_extended_dark.png)
 
