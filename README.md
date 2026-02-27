@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/pip%20install--e%20.-brightgreen" alt="pip install -e .">
+  <img src="https://img.shields.io/badge/pip%20install-%20--e%20.-brightgreen" alt="pip install -e .">
 </p>
 
 ![QKD Process Animation](Logos/QRiNG_extended_dark.png)
