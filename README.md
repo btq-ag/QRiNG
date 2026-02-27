@@ -1,6 +1,11 @@
 # QRiNG: Quantum Random Number Generator Protocol
 ###### A hybrid quantum-blockchain protocol for verifiable quantum random number generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
 
+![CI](https://github.com/btq-ag/QRiNG/actions/workflows/ci.yml/badge.svg)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![pip install](https://img.shields.io/badge/pip%20install-e%20.-brightgreen)
+
 ![QKD Process Animation](Logos/QRiNG_extended_dark.png)
 
 ## Objective
@@ -55,8 +60,20 @@ This construction preserves entropy—if at least one honest node contributes tr
 
 ## Code Functionality
 
+### Installation
+
+```bash
+pip install -e .
+```
+
+Or with development dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
 ### 1. Quantum Random Number Generation and Simulation
-The `simulatorQRiNG.py` implements the complete QKD simulation with network consensus. Each node generates bitstrings by simulating quantum measurement on qubits prepared in superposition, incorporating realistic quantum effects. The measurement bias parameter $q_b \sim \mathcal{N}(0.5, 0.05)$ models device imperfections, while entanglement correlations follow $P(b_k = 1) = q_b + \gamma \sin(k\pi/4)(2b_{k-1} - 1)$ with correlation factor γ = 0.15. The simulator also tracks vote counts and identifies honest nodes through the consensus protocol.
+The `qring/simulator.py` implements the complete QKD simulation with network consensus. Each node generates bitstrings by simulating quantum measurement on qubits prepared in superposition, incorporating realistic quantum effects. The measurement bias parameter $q_b \sim \mathcal{N}(0.5, 0.05)$ models device imperfections, while entanglement correlations follow $P(b_k = 1) = q_b + \gamma \sin(k\pi/4)(2b_{k-1} - 1)$ with correlation factor γ = 0.15. The simulator also tracks vote counts and identifies honest nodes through the consensus protocol.
 
 ```python
 class QRiNGSimulator:
@@ -77,7 +94,7 @@ class QRiNGSimulator:
 ```
 
 ### 2. Blockchain Smart Contract Emulation
-The `emulatorQRiNG.py` replicates Ethereum smart contract functionality in Python, enabling testing and validation without deployment costs. The emulator maintains complete contract state including voter registrations, bitstring storage, voting status, and vote tallies. Gas costs follow the Ethereum model: $G_{\text{total}} = G_{\text{base}} + n \cdot G_{\text{voter}} + n \cdot \ell \cdot G_{\text{storage}}$ where $G_{\text{base}} = 21000$, $G_{\text{voter}} \approx 50000$, and $G_{\text{storage}} \approx 20$ per bit. Transaction logging provides a complete audit trail for debugging and verification.
+The `qring/emulator.py` replicates Ethereum smart contract functionality in Python, enabling testing and validation without deployment costs. The emulator maintains complete contract state including voter registrations, bitstring storage, voting status, and vote tallies. Gas costs follow the Ethereum model: $G_{\text{total}} = G_{\text{base}} + n \cdot G_{\text{voter}} + n \cdot \ell \cdot G_{\text{storage}}$ where $G_{\text{base}} = 21000$, $G_{\text{voter}} \approx 50000$, and $G_{\text{storage}} \approx 20$ per bit. Transaction logging provides a complete audit trail for debugging and verification.
 
 ```python
 class QRiNGEmulator:
@@ -125,7 +142,7 @@ def generate_final_random_number(self):
 ```
 
 ### 4. Advanced Visualization Suite
-The `visualizationQRiNG.py` creates professional animated visualizations demonstrating the complete protocol lifecycle. Quantum state evolution under decoherence follows $|\psi(t)\rangle \propto e^{-t/T_2}(\cos(\omega t)|0\rangle + \sin(\omega t)|1\rangle)$ where $T_2$ is the coherence time. Network topology renders nodes in circular layout with color-coded status (green = honest, red = dishonest) and oscillating quantum channel intensities $\alpha = (1 + \sin(\omega t))/2$. Real-time statistical displays show similarity heatmaps $S_{ij}$, vote distributions, and bit frequency convergence toward the theoretical expectation $P(1) = 0.5$.
+The `qring/visualization.py` creates professional animated visualizations demonstrating the complete protocol lifecycle. Quantum state evolution under decoherence follows $|\psi(t)\rangle \propto e^{-t/T_2}(\cos(\omega t)|0\rangle + \sin(\omega t)|1\rangle)$ where $T_2$ is the coherence time. Network topology renders nodes in circular layout with color-coded status (green = honest, red = dishonest) and oscillating quantum channel intensities $\alpha = (1 + \sin(\omega t))/2$. Real-time statistical displays show similarity heatmaps $S_{ij}$, vote distributions, and bit frequency convergence toward the theoretical expectation $P(1) = 0.5$.
 
 ```python
 class QRiNGVisualizer:
@@ -213,7 +230,7 @@ The implementation achieves quantum entropy $H > 0.99$ bits/qubit with 95% conse
 
 ## Smart Contract Integration
 
-The protocol is built around the `originalQRiNG.sol` Ethereum smart contract:
+The protocol is built around the `contracts/originalQRiNG.sol` Ethereum smart contract:
 
 ```solidity
 pragma solidity ^0.8.0;
