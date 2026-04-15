@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from qring.simulator import QRiNGSimulator, _HAS_QISKIT
-
+from qring.simulator import _HAS_QISKIT, QRiNGSimulator
 
 # ---------------------------------------------------------------------------
 # Initialisation
 # ---------------------------------------------------------------------------
+
 
 class TestSimulatorInit:
     def testDefaultInit(self):
@@ -39,10 +39,7 @@ class TestSimulatorInit:
     def testDifferentSeedsDiffer(self):
         a = QRiNGSimulator(seed=1, useQuantumBackend=False)
         b = QRiNGSimulator(seed=2, useQuantumBackend=False)
-        differs = any(
-            not np.array_equal(a.bitstrings[n], b.bitstrings[n])
-            for n in a.nodes
-        )
+        differs = any(not np.array_equal(a.bitstrings[n], b.bitstrings[n]) for n in a.nodes)
         assert differs
 
     def testNoGlobalRngMutation(self):
@@ -59,22 +56,20 @@ class TestSimulatorInit:
 # Classical bitstring generation
 # ---------------------------------------------------------------------------
 
+
 class TestClassicalBitstrings:
     def testOutputShape(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=12, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=12, seed=0, useQuantumBackend=False)
         for node in sim.nodes:
             assert sim.bitstrings[node].shape == (12,)
 
     def testBinaryValues(self):
-        sim = QRiNGSimulator(numNodes=6, bitstringLength=64, seed=7,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=6, bitstringLength=64, seed=7, useQuantumBackend=False)
         for node in sim.nodes:
             assert set(sim.bitstrings[node].tolist()).issubset({0, 1})
 
     def testNotAllIdentical(self):
-        sim = QRiNGSimulator(numNodes=6, bitstringLength=64, seed=3,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=6, bitstringLength=64, seed=3, useQuantumBackend=False)
         unique = {tuple(sim.bitstrings[n].tolist()) for n in sim.nodes}
         assert len(unique) > 1
 
@@ -83,23 +78,24 @@ class TestClassicalBitstrings:
 # Qiskit Aer backend
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not _HAS_QISKIT, reason="qiskit-aer not installed")
 class TestQiskitBackend:
     def testQiskitBitstringsShape(self):
-        sim = QRiNGSimulator(numNodes=3, bitstringLength=8, seed=0,
-                             useQuantumBackend=True)
+        sim = QRiNGSimulator(numNodes=3, bitstringLength=8, seed=0, useQuantumBackend=True)
         for node in sim.nodes:
             assert sim.bitstrings[node].shape == (8,)
 
     def testQiskitBinaryValues(self):
-        sim = QRiNGSimulator(numNodes=3, bitstringLength=16, seed=0,
-                             useQuantumBackend=True)
+        sim = QRiNGSimulator(numNodes=3, bitstringLength=16, seed=0, useQuantumBackend=True)
         for node in sim.nodes:
             assert set(sim.bitstrings[node].tolist()).issubset({0, 1})
+
 
 def testExplicitQuantumBackendMissingRaises(monkeypatch):
     """Force _HAS_QISKIT=False and request quantum backend."""
     import qring.simulator as mod
+
     monkeypatch.setattr(mod, "_HAS_QISKIT", False)
     with pytest.raises(RuntimeError, match="qiskit-aer is required"):
         QRiNGSimulator(useQuantumBackend=True)
@@ -109,24 +105,22 @@ def testExplicitQuantumBackendMissingRaises(monkeypatch):
 # Bitstring similarity
 # ---------------------------------------------------------------------------
 
+
 class TestBitstingSimilarity:
     def testIdenticalBitstrings(self):
-        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0, useQuantumBackend=False)
         # Overwrite so both nodes share the same bitstring
         sim.bitstrings[1] = sim.bitstrings[0].copy()
         assert sim.calculateBitstringSimilarity(0, 1) == 8
 
     def testComplementBitstrings(self):
-        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0, useQuantumBackend=False)
         sim.bitstrings[0] = np.array([0, 1, 0, 1, 0, 1, 0, 1])
         sim.bitstrings[1] = np.array([1, 0, 1, 0, 1, 0, 1, 0])
         assert sim.calculateBitstringSimilarity(0, 1) == 0
 
     def testMissingNode(self):
-        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0, useQuantumBackend=False)
         assert sim.calculateBitstringSimilarity(0, 99) == 0
 
 
@@ -134,29 +128,26 @@ class TestBitstingSimilarity:
 # Consensus protocol
 # ---------------------------------------------------------------------------
 
+
 class TestConsensus:
     def testPerformConsensusCheckMarksVoted(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0, useQuantumBackend=False)
         assert sim.performConsensusCheck(0) is True
-        assert sim.hasVoted[0] == True
+        assert sim.hasVoted[0]
 
     def testDoubleVotePrevented(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0, useQuantumBackend=False)
         sim.performConsensusCheck(0)
         assert sim.performConsensusCheck(0) is False
 
     def testAllNodesVote(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0, useQuantumBackend=False)
         sim.runConsensusProtocol()
         assert all(sim.hasVoted)
 
     def testHonestNodesIdentified(self):
         """Force correlated bitstrings so most nodes pass consensus."""
-        sim = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=0, useQuantumBackend=False)
         # Force nodes to share similar bitstrings so consensus succeeds
         base = sim.bitstrings[0].copy()
         for node in range(1, sim.numNodes):
@@ -167,11 +158,10 @@ class TestConsensus:
 
     def testKnownDishonestScenario(self):
         """Inject a clearly adversarial node and verify it is excluded."""
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=16, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=16, seed=0, useQuantumBackend=False)
         # Make node 3 wildly different
         sim.bitstrings[3] = 1 - sim.bitstrings[0]
-        honest = sim.runConsensusProtocol()
+        sim.runConsensusProtocol()
         # Node 3 should have low vote count
         assert sim.voteCounts[3] <= sim.numNodes // 2
 
@@ -180,29 +170,27 @@ class TestConsensus:
 # Final random number
 # ---------------------------------------------------------------------------
 
+
 class TestFinalRandomNumber:
     def testRunFullSimulation(self):
-        sim = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=0, useQuantumBackend=False)
         # Force correlated bitstrings to ensure honest nodes exist
         base = sim.bitstrings[0].copy()
         for node in range(1, sim.numNodes):
             sim.bitstrings[node] = base.copy()
         result = sim.runFullSimulation()
-        assert result['final_random_number'] is not None
-        assert len(result['final_random_number']) == 8
+        assert result["final_random_number"] is not None
+        assert len(result["final_random_number"]) == 8
 
     def testOutputIsBinary(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=16, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=16, seed=0, useQuantumBackend=False)
         sim.runConsensusProtocol()
         bits = sim.generateFinalRandomNumber()
         if bits is not None:
             assert set(bits.tolist()).issubset({0, 1})
 
     def testNoHonestNodesReturnsNone(self):
-        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=2, bitstringLength=8, seed=0, useQuantumBackend=False)
         # Make bitstrings maximally different so no one passes consensus
         sim.bitstrings[0] = np.zeros(8, dtype=int)
         sim.bitstrings[1] = np.ones(8, dtype=int)
@@ -212,8 +200,7 @@ class TestFinalRandomNumber:
 
     def testXorAggregation(self):
         """Verify the XOR logic directly."""
-        sim = QRiNGSimulator(numNodes=3, bitstringLength=4, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=3, bitstringLength=4, seed=0, useQuantumBackend=False)
         sim.bitstrings[0] = np.array([1, 0, 1, 0])
         sim.bitstrings[1] = np.array([0, 1, 1, 0])
         sim.bitstrings[2] = np.array([1, 1, 0, 0])
@@ -227,23 +214,26 @@ class TestFinalRandomNumber:
 # Configurable consensus threshold
 # ---------------------------------------------------------------------------
 
+
 class TestConsensusThreshold:
     def testDefaultThreshold(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0,
-                             useQuantumBackend=False)
+        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0, useQuantumBackend=False)
         assert sim.consensusThreshold == 4  # bitstringLength // 2
 
     def testCustomThreshold(self):
-        sim = QRiNGSimulator(numNodes=4, bitstringLength=8, seed=0,
-                             useQuantumBackend=False, consensusThreshold=6)
+        sim = QRiNGSimulator(
+            numNodes=4, bitstringLength=8, seed=0, useQuantumBackend=False, consensusThreshold=6
+        )
         assert sim.consensusThreshold == 6
 
     def testHighThresholdReducesHonestNodes(self):
         """A higher threshold should make it harder to pass consensus."""
-        sim_low = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=42,
-                                 useQuantumBackend=False, consensusThreshold=2)
-        sim_high = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=42,
-                                  useQuantumBackend=False, consensusThreshold=7)
+        sim_low = QRiNGSimulator(
+            numNodes=6, bitstringLength=8, seed=42, useQuantumBackend=False, consensusThreshold=2
+        )
+        sim_high = QRiNGSimulator(
+            numNodes=6, bitstringLength=8, seed=42, useQuantumBackend=False, consensusThreshold=7
+        )
         # Copy same bitstrings
         for n in sim_high.nodes:
             sim_high.bitstrings[n] = sim_low.bitstrings[n].copy()

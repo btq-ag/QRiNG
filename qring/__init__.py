@@ -7,8 +7,8 @@ generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
 Author: Jeffrey Morais, BTQ
 """
 
-from qring.simulator import QRiNGSimulator
 from qring.emulator import QRiNGEmulator
+from qring.simulator import QRiNGSimulator
 from qring.visualization import QRiNGVisualizer
 
 __version__ = "0.1.0"

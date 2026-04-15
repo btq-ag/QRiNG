@@ -1,9 +1,6 @@
 """Tests for qring.emulator -- QRiNG smart contract emulation."""
 
-import pytest
-
 from qring.emulator import QRiNGEmulator
-
 
 ADMIN = "0xADMIN_000000000000000000000000000000000"
 OTHER = "0xOTHER_000000000000000000000000000000000"
@@ -28,6 +25,7 @@ def _setup_ready_emulator():
 # Initialization
 # ---------------------------------------------------------------------------
 
+
 class TestEmulatorInit:
     def testDefaultInit(self):
         emu = QRiNGEmulator(adminAddress=ADMIN)
@@ -45,6 +43,7 @@ class TestEmulatorInit:
 # ---------------------------------------------------------------------------
 # addNewString
 # ---------------------------------------------------------------------------
+
 
 class TestAddNewString:
     def testValidInput(self):
@@ -68,6 +67,7 @@ class TestAddNewString:
 # ---------------------------------------------------------------------------
 # setAddresses
 # ---------------------------------------------------------------------------
+
 
 class TestSetAddresses:
     def testValidSetup(self):
@@ -101,11 +101,12 @@ class TestSetAddresses:
 # check
 # ---------------------------------------------------------------------------
 
+
 class TestCheck:
     def testValidCheck(self):
         emu = _setup_ready_emulator()
         assert emu.check(0, ADDRESSES[0]) is True
-        assert emu.voters[0]['hasVoted'] is True
+        assert emu.voters[0]["hasVoted"] is True
 
     def testDoubleCheckRejected(self):
         emu = _setup_ready_emulator()
@@ -124,7 +125,7 @@ class TestCheck:
         emu.check(0, ADDRESSES[0])
         # All other nodes should have gotten a vote
         for i in range(1, 4):
-            assert emu.voters[i]['voteCount'] >= 1
+            assert emu.voters[i]["voteCount"] >= 1
 
     def testNonMatchingBitstringsNoVotes(self):
         emu = QRiNGEmulator(bitstringLength=6, adminAddress=ADMIN)
@@ -138,13 +139,14 @@ class TestCheck:
         emu.setAddresses(ADDRESSES, ADMIN)
         emu.check(0, ADDRESSES[0])
         # Nodes 1 and 3 are complements of node 0, should not get votes
-        assert emu.voters[1]['voteCount'] == 0
-        assert emu.voters[3]['voteCount'] == 0
+        assert emu.voters[1]["voteCount"] == 0
+        assert emu.voters[3]["voteCount"] == 0
 
 
 # ---------------------------------------------------------------------------
 # endVoting + getWinner
 # ---------------------------------------------------------------------------
+
 
 class TestEndVotingAndGetWinner:
     def testEndVotingFlow(self):
@@ -176,6 +178,7 @@ class TestEndVotingAndGetWinner:
 # randomNumber
 # ---------------------------------------------------------------------------
 
+
 class TestRandomNumber:
     def testFullFlow(self):
         emu = _setup_ready_emulator()
@@ -198,8 +201,8 @@ class TestRandomNumber:
         emu.setAddresses(addrs, ADMIN)
         # Make both nodes "honest" by giving them high vote counts
         for v in emu.voters:
-            v['voteCount'] = 10
-            v['hasVoted'] = True
+            v["voteCount"] = 10
+            v["hasVoted"] = True
         emu.votingActive = False
         result = emu.randomNumber(ADMIN)
         # XOR: [1^0, 0^1, 1^1, 0^0] = [1, 1, 0, 0]
@@ -217,8 +220,8 @@ class TestRandomNumber:
         emu.addNewString(long_bits, ADMIN)
         emu.setAddresses(addrs, ADMIN)
         for v in emu.voters:
-            v['voteCount'] = 10
-            v['hasVoted'] = True
+            v["voteCount"] = 10
+            v["hasVoted"] = True
         emu.votingActive = False
         result = emu.randomNumber(ADMIN)
         assert len(result) == 10
@@ -232,6 +235,7 @@ class TestRandomNumber:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     def testZeroVoters(self):
@@ -250,7 +254,7 @@ class TestEdgeCases:
         assert len(emu.voters) == 1
         # Single voter checks against no others, so no votes are cast
         emu.check(0, ADDRESSES[0])
-        assert emu.voters[0]['voteCount'] == 0
+        assert emu.voters[0]["voteCount"] == 0
 
     def testEmptyBitstrings(self):
         """C1 audit: empty bitstrings edge case."""
@@ -262,14 +266,15 @@ class TestEdgeCases:
     def testContractStateSnapshot(self):
         emu = _setup_ready_emulator()
         state = emu.getContractState()
-        assert state['admin'] == ADMIN
-        assert state['votingActive'] is True
-        assert state['numVoters'] == 4
+        assert state["admin"] == ADMIN
+        assert state["votingActive"] is True
+        assert state["numVoters"] == 4
 
 
 # ---------------------------------------------------------------------------
 # Row-length validation
 # ---------------------------------------------------------------------------
+
 
 class TestRowLengthValidation:
     def testJaggedBitstringsRejected(self):
@@ -288,12 +293,12 @@ class TestRowLengthValidation:
 # Configurable consensus threshold
 # ---------------------------------------------------------------------------
 
+
 class TestConsensusThreshold:
     def testDefaultThreshold(self):
         emu = QRiNGEmulator(bitstringLength=6, adminAddress=ADMIN)
         assert emu.consensusThreshold == 3  # bitstringLength // 2
 
     def testCustomThreshold(self):
-        emu = QRiNGEmulator(bitstringLength=6, adminAddress=ADMIN,
-                            consensusThreshold=5)
+        emu = QRiNGEmulator(bitstringLength=6, adminAddress=ADMIN, consensusThreshold=5)
         assert emu.consensusThreshold == 5
