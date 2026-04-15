@@ -38,3 +38,6 @@ htmlcov/
 
 # Agent context
 Jenova/
+
+# Copilot workspace instructions (personal)
+.github/copilot-instructions.md
