@@ -30,3 +30,11 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Secrets
+.env*
+*.pem
+*.key
+
+# Agent context
+Jenova/

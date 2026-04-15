@@ -2,7 +2,7 @@
 ###### A hybrid quantum-blockchain protocol for verifiable quantum random number generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
 
 <p align="center">
-  <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI">
+  <img src="https://github.com/IsolatedSingularity/QRiNG/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/pip%20install-%20--e%20.-brightgreen" alt="pip install -e .">
@@ -68,28 +68,37 @@ This construction preserves entropy—if at least one honest node contributes tr
 pip install -e .
 ```
 
-Or with development dependencies:
+Or with development dependencies (includes Qiskit Aer for true quantum simulation):
 
 ```bash
 pip install -e ".[dev]"
 ```
 
+To install only the quantum backend without dev tools:
+
+```bash
+pip install -e ".[quantum]"
+```
+
 ### 1. Quantum Random Number Generation and Simulation
-The `qring/simulator.py` implements the complete QKD simulation with network consensus. Each node generates bitstrings by simulating quantum measurement on qubits prepared in superposition, incorporating realistic quantum effects. The measurement bias parameter $q_b \sim \mathcal{N}(0.5, 0.05)$ models device imperfections, while entanglement correlations follow $P(b_k = 1) = q_b + \gamma \sin(k\pi/4)(2b_{k-1} - 1)$ with correlation factor γ = 0.15. The simulator also tracks vote counts and identifies honest nodes through the consensus protocol.
+The `qring/simulator.py` implements the complete QKD simulation with network consensus. When `qiskit-aer` is installed, each node generates bitstrings by applying Hadamard gates to qubits in the $|0\rangle$ state and measuring on `AerSimulator`, producing genuine quantum randomness. A classical PRNG fallback is available when Qiskit is not installed. The simulator also tracks vote counts and identifies honest nodes through the consensus protocol.
 
 ```python
 class QRiNGSimulator:
-    def __init__(self, num_nodes=6, bitstring_length=8, seed=None):
-        if seed is not None:
-            np.random.seed(seed)
-        self.num_nodes = num_nodes
-        self.bitstring_length = bitstring_length
+    def __init__(self, numNodes=6, bitstringLength=8, seed=None,
+                 useQuantumBackend=None, consensusThreshold=None):
+        self.rng = np.random.default_rng(seed)  # Instance-level RNG (no global state mutation)
+        if useQuantumBackend is None:
+            self.useQuantumBackend = _HAS_QISKIT  # Auto-detect Qiskit availability
+        self.numNodes = numNodes
+        self.bitstringLength = bitstringLength
+        self.consensusThreshold = consensusThreshold if consensusThreshold is not None else bitstringLength // 2
         self.bitstrings = {}
-        self.vote_counts = np.zeros(num_nodes)
-        self.honest_nodes = []
-        self._generate_quantum_bitstrings()
+        self.voteCounts = np.zeros(numNodes)
+        self.honestNodes = []
+        self._generateQuantumBitstrings()
     
-    def calculate_bitstring_similarity(self, node1, node2):
+    def calculateBitstringSimilarity(self, node1, node2):
         """Calculate similarity between two nodes' bitstrings"""
         matches = np.sum(self.bitstrings[node1] == self.bitstrings[node2])
         return matches
@@ -100,19 +109,23 @@ The `qring/emulator.py` replicates Ethereum smart contract functionality in Pyth
 
 ```python
 class QRiNGEmulator:
-    def __init__(self, bitstring_length=6):
-        self.voters = []           # Array of Voter structs
-        self.admin = None          # Contract administrator address
-        self.voting_active = False # Voting phase flag
-        self.counter = []          # 2D array for bitstrings
-        self.transaction_log = []  # Complete audit trail
-        self.gas_consumption = {}  # Gas tracking per function
+    def __init__(self, bitstringLength=6, adminAddress=None, consensusThreshold=None):
+        self.voters = []             # Array of Voter structs
+        self.admin = adminAddress    # Set in constructor (mirrors Solidity constructor)
+        self.votingActive = False    # Voting phase flag
+        self.initialized = False     # Guard against re-initialization
+        self.counter = []            # 2D array for bitstrings
+        self.consensusThreshold = consensusThreshold if consensusThreshold is not None else bitstringLength // 2
+        self.transactionLog = []     # Complete audit trail
+        self.gasConsumption = {}     # Gas tracking per function
     
-    def add_new_string(self, new_string, caller_address):
-        """Store quantum bitstrings in contract storage"""
-        gas_used = 21000 + len(new_string) * len(new_string[0]) * 20
-        self.counter = [list(bitstring) for bitstring in new_string]
-        self._log_transaction('addNewString', caller_address, gas_used)
+    def addNewString(self, newString, callerAddress):
+        """Store quantum bitstrings in contract storage (admin only)"""
+        if callerAddress != self.admin:
+            raise Exception("Only admin can call this function")
+        gasUsed = 21000 + len(newString) * len(newString[0]) * 20
+        self.counter = [list(bitstring) for bitstring in newString]
+        self._logTransaction('addNewString', callerAddress, gasUsed)
         return True
 ```
 
@@ -120,27 +133,27 @@ class QRiNGEmulator:
 The protocol implements Byzantine fault-tolerant consensus for validating quantum measurements and identifying honest participants. Each node computes pairwise similarity scores $S_{ij} = \sum_{k=1}^{\ell} \mathbb{1}[b_i^{(k)} = b_j^{(k)}]$ against all other nodes. When $S_{ij} > \ell/2$, the checking node casts a vote for the target as honest. After all validations complete, nodes with $\text{VoteCount} > n/2$ are classified as honest, providing tolerance against up to $\lfloor(n-1)/3\rfloor$ Byzantine adversaries. The final random output $R = \bigoplus_{j \in V_{\text{honest}}} \mathbf{b}_j$ preserves full entropy if at least one honest node contributes true quantum randomness.
 
 ```python
-def perform_consensus_check(self, checking_node):
+def performConsensusCheck(self, checking_node):
     """Execute consensus validation from one node's perspective"""
-    if self.has_voted[checking_node]:
+    if self.hasVoted[checking_node]:
         return False
     
-    threshold = self.bitstring_length // 2
+    threshold = self.consensusThreshold
     for target_node in self.nodes:
         if target_node != checking_node:
-            matches = self.calculate_bitstring_similarity(checking_node, target_node)
+            matches = self.calculateBitstringSimilarity(checking_node, target_node)
             if matches > threshold:
-                self.vote_counts[target_node] += 1
+                self.voteCounts[target_node] += 1
     
-    self.has_voted[checking_node] = True
+    self.hasVoted[checking_node] = True
     return True
 
-def generate_final_random_number(self):
+def generateFinalRandomNumber(self):
     """XOR aggregate honest nodes' bitstrings"""
-    final_bits = np.zeros(self.bitstring_length, dtype=int)
-    for node in self.honest_nodes:
-        final_bits = final_bits ^ self.bitstrings[node]
-    return final_bits
+    finalBits = np.zeros(self.bitstringLength, dtype=int)
+    for node in self.honestNodes:
+        finalBits = finalBits ^ self.bitstrings[node]
+    return finalBits
 ```
 
 ### 4. Advanced Visualization Suite
@@ -148,8 +161,8 @@ The `qring/visualization.py` creates professional animated visualizations demons
 
 ```python
 class QRiNGVisualizer:
-    def __init__(self, output_dir="../Plots"):
-        self.output_dir = output_dir
+    def __init__(self, outputDir="../Plots"):
+        self.outputDir = outputDir
         self.colors = {
             'quantum': '#6B73FF',
             'honest': '#00FF88', 
@@ -157,17 +170,17 @@ class QRiNGVisualizer:
             'active': '#FFD93D'
         }
     
-    def animate_qkd_process(self, save_path):
+    def animateQkdProcess(self, savePath):
         """Animate quantum key distribution between network nodes"""
-        simulator = QRiNGSimulator(num_nodes=4, bitstring_length=6, seed=42)
+        simulator = QRiNGSimulator(numNodes=4, bitstringLength=6, seed=42)
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
         # ... animation logic for 60 frames at 8 FPS
     
-    def generate_all_animations(self):
+    def generateAllAnimations(self):
         """Generate complete animation suite"""
-        self.animate_qkd_process("qkd_process.gif")
-        self.animate_consensus_mechanism("consensus_mechanism.gif")
-        self.animate_smart_contract_execution("smart_contract_execution.gif")
+        self.animateQkdProcess("qkd_process.gif")
+        self.animateConsensusMechanism("consensus_mechanism.gif")
+        self.animateSmartContractExecution("smart_contract_execution.gif")
 ```
 
 ### 5. Smart Contract Integration
@@ -175,25 +188,25 @@ The integration demonstrates the complete protocol lifecycle across five phases,
 
 ```python
 # Complete protocol execution demonstrating full lifecycle
-def run_full_protocol(bitstrings, addresses, admin):
-    emulator = QRiNGEmulator(bitstring_length=6)
+def runFullProtocol(bitstrings, addresses, admin):
+    emulator = QRiNGEmulator(bitstringLength=6, adminAddress=admin)
     
-    # Phase 1: Upload quantum-generated bitstrings
-    emulator.add_new_string(bitstrings, admin)
+    # Phase 1: Upload quantum-generated bitstrings (admin only)
+    emulator.addNewString(bitstrings, admin)
     
-    # Phase 2: Register participant addresses
-    emulator.set_addresses(addresses, admin)
+    # Phase 2: Register participant addresses (admin only, one-time)
+    emulator.setAddresses(addresses, admin)
     
     # Phase 3: Execute pairwise consensus validation
     for i, addr in enumerate(addresses):
         emulator.check(i, addr)
     
     # Phase 4: Terminate voting phase
-    emulator.end_voting(admin)
+    emulator.endVoting(admin)
     
     # Phase 5: Extract final quantum random number
-    random_bits = emulator.random_number(admin)
-    return random_bits
+    randomBits = emulator.randomNumber(admin)
+    return randomBits
 ```
 
 ## Results
@@ -232,37 +245,74 @@ The implementation achieves quantum entropy $H > 0.99$ bits/qubit with 95% conse
 
 ## Smart Contract Integration
 
-The protocol is built around the `contracts/originalQRiNG.sol` Ethereum smart contract:
+The protocol is built around the `contracts/originalQRiNG.sol` Ethereum smart contract. Admin is set at deployment via the constructor. Access control modifiers protect `addNewString` and `setAddresses`, and a one-time initialization guard prevents re-registration attacks. A configurable `consensusThreshold` allows tuning the correlation requirement before initialization.
 
 ```solidity
 pragma solidity ^0.8.0;
 
 contract QRiNG {
-    mapping(uint256 => uint256) public randomNumbers;
-    mapping(uint256 => uint256) public timestamps;
-    mapping(address => bool) public validators;
-    
-    address public owner;
-    uint256 public consensusThreshold;
-    uint256 private nextRequestId;
-    
-    event RandomNumberGenerated(uint256 indexed requestId, uint256 randomNumber, uint256 timestamp);
-    
-    function generateRandomNumber(bytes memory quantumData) public returns (uint256) {
-        uint256 requestId = nextRequestId++;
-        uint256 randomValue = uint256(keccak256(quantumData));
-        
-        randomNumbers[requestId] = randomValue;
-        timestamps[requestId] = block.timestamp;
-        
-        emit RandomNumberGenerated(requestId, randomValue, block.timestamp);
-        return requestId;
+    struct Voter {
+        address delegate;
+        bool hasVoted;
+        uint number;
+        uint voteCount;
+        uint[] bitstring;
     }
-    
-    function validateMeasurement(uint256 requestId, bytes memory proof) public view returns (bool) {
-        require(validators[msg.sender], "Not authorized validator");
-        // ...quantum measurement validation logic...
-        return true;
+
+    Voter[] public voters;
+    address public admin;
+    bool public votingActive;
+    uint[][] public counter;
+    bool private initialized;
+    uint public consensusThreshold;
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin can call this function");
+        _;
+    }
+
+    constructor() {
+        admin = msg.sender;
+    }
+
+    function setConsensusThreshold(uint threshold) external onlyAdmin {
+        require(!initialized, "Cannot change threshold after initialization");
+        consensusThreshold = threshold;
+    }
+
+    function addNewString(uint[][] memory newString) public onlyAdmin {
+        counter = newString;
+    }
+
+    function setAddresses(address[] memory voterAddresses) public onlyAdmin {
+        require(!initialized, "Already initialized");
+        initialized = true;
+        votingActive = true;
+        for (uint x = 0; x < voterAddresses.length; x++) {
+            voters.push(Voter({
+                delegate: voterAddresses[x],
+                hasVoted: false,
+                number: x,
+                voteCount: 0,
+                bitstring: counter[x]
+            }));
+        }
+    }
+
+    function randomNumber() external view returns (uint[] memory) {
+        require(!votingActive, "Voting is still active");
+        require(voters.length > 0, "No voters registered");
+        uint256 len = voters.length / 2;
+        uint bitstringLength = voters[0].bitstring.length;
+        uint[] memory newBitstring = new uint[](bitstringLength);
+        for (uint i = 0; i < voters.length; i++) {
+            if (voters[i].voteCount > len) {
+                for (uint x = 0; x < voters[i].bitstring.length; x++) {
+                    newBitstring[x] ^= voters[i].bitstring[x];
+                }
+            }
+        }
+        return newBitstring;
     }
 }
 ```
@@ -277,16 +327,14 @@ contract QRiNG {
 
 ## Next Steps
 
-- [x] Implement error correction codes for noisy quantum channels
-- [x] Add Byzantine fault tolerance to the consensus mechanism  
+- [ ] Implement error correction codes for noisy quantum channels
+- [ ] Add Byzantine fault tolerance to the consensus mechanism  
+- [x] Integrate with Qiskit Aer for genuine quantum circuit simulation
 - [ ] Integrate with actual quantum hardware via cloud APIs (IBM Quantum, Google Quantum AI)
 - [ ] Develop layer-2 scaling solutions for large participant networks
 - [ ] Implement zero-knowledge proofs for enhanced privacy
 - [ ] Add formal verification of smart contract security properties
 - [ ] Create mobile app interface for quantum randomness consumption
-
-> [!TIP]
-> For detailed mathematical proofs and security analysis, see the Archive/ directory containing comprehensive documentation of the QRiNG protocol theory.
 
 > [!NOTE]
 > This implementation serves as both a research prototype and educational tool for understanding quantum-blockchain integration. Production deployment requires additional security auditing and hardware optimization.
@@ -297,4 +345,4 @@ contract QRiNG {
 ---
 
 *QRiNG Protocol - Bridging Quantum Physics and Blockchain Technology*  
-*© 2024 - Open Source Implementation for Research and Education*
+*© 2024-2026 - Open Source Implementation for Research and Education*

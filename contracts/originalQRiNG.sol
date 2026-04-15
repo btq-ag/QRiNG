@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
  
-contract SmartContract {
+contract QRiNG {
     
     // Voter structure containing delegate address, voting status, and quantum bitstring
     struct Voter {
@@ -16,6 +16,8 @@ contract SmartContract {
     address public admin;           // Administrator address with special permissions
     bool public votingActive;       // Flag to control voting phase activation
     uint[][] public counter;        // 2D array storing all quantum bitstrings
+    bool private initialized;       // Guard against re-initialization
+    uint public consensusThreshold; // Configurable threshold for consensus (0 = default l/2)
 
     // Events for external monitoring
     event VoterRegistered(address voter);   // Emitted when new voter is added
@@ -33,14 +35,25 @@ contract SmartContract {
         _;
     }
 
-    // Store new quantum bitstrings in the counter array
-    function addNewString(uint[][] memory newString) public { 
+    constructor() {
+        admin = msg.sender;
+    }
+
+    // Set custom consensus threshold (admin only, before initialization)
+    function setConsensusThreshold(uint threshold) external onlyAdmin {
+        require(!initialized, "Cannot change threshold after initialization");
+        consensusThreshold = threshold;
+    }
+
+    // Store new quantum bitstrings in the counter array (admin only)
+    function addNewString(uint[][] memory newString) public onlyAdmin { 
         counter = newString;
     }
 
     // Initialize the voting system with voter addresses and their quantum bitstrings
-    function setAddresses(address[] memory voterAddresses) public {
-        admin = msg.sender;     // Set caller as admin
+    function setAddresses(address[] memory voterAddresses) public onlyAdmin {
+        require(!initialized, "Already initialized");
+        initialized = true;
         votingActive = true;    // Activate voting phase
         
         // Create voter entries with assigned bitstrings
@@ -56,12 +69,6 @@ contract SmartContract {
         }
     }
 
-    // Start the voting process (admin only)
-    function startVoting() external onlyAdmin {
-        require(!votingActive, "Voting is already active");
-        votingActive = true;
-    }
-
     // End the voting process and allow result computation (admin only)
     function endVoting() external onlyAdmin {
         require(votingActive, "Voting is not active");
@@ -74,8 +81,11 @@ contract SmartContract {
         require(voters[from].delegate == msg.sender, "Not authorized");
         require(!voters[from].hasVoted, "Voter has already voted");
         
-        // Calculate threshold for quantum correlation (half of bitstring length)
-        uint bitstringLength = voters[from].bitstring.length / 2;
+        // Calculate threshold for quantum correlation
+        // Use custom threshold if set, otherwise default to half of bitstring length
+        uint bitstringThreshold = consensusThreshold > 0
+            ? consensusThreshold
+            : voters[from].bitstring.length / 2;
         
         // Compare this voter's bitstring with all other voters
         for (uint i = 0; i < voters.length; i++) {
@@ -90,7 +100,7 @@ contract SmartContract {
                 }
                 
                 // If correlation exceeds threshold, increment vote count
-                if (add > bitstringLength) {
+                if (add > bitstringThreshold) {
                     voters[i].voteCount++;
                 }
             }
@@ -116,17 +126,19 @@ contract SmartContract {
     }
 
     // Generate final random number by XOR-ing bitstrings of consensus voters
-    function randomNumber() external view returns (uint[6] memory newBitstring) {
+    function randomNumber() external view returns (uint[] memory) {
         require(!votingActive, "Voting is still active");
+        require(voters.length > 0, "No voters registered");
         uint256 len = voters.length / 2;  // Majority threshold
+        uint bitstringLength = voters[0].bitstring.length;
+        uint[] memory newBitstring = new uint[](bitstringLength);
 
         // XOR together bitstrings from voters with sufficient vote counts
         for (uint i = 0; i < voters.length; i++) {
             if (voters[i].voteCount > len) {
                 // XOR each bit position with the corresponding bit from this voter
                 for (uint x = 0; x < voters[i].bitstring.length; x++) {
-                    newBitstring[x] += voters[i].bitstring[x];
-                    newBitstring[x] %= 2;  // Ensure binary result (0 or 1)
+                    newBitstring[x] ^= voters[i].bitstring[x];
                 }
             }
         }

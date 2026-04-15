@@ -10,6 +10,8 @@ This script emulates the exact behavior of the QRiNG smart contract functions:
 Author: Jeffrey Morais, BTQ
 """
 
+from __future__ import annotations
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -24,97 +26,128 @@ class QRiNGEmulator:
     Emulator for the QRiNG smart contract that replicates exact Solidity behavior
     """
     
-    def __init__(self, bitstring_length=6):
+    def __init__(self, bitstringLength: int = 6, adminAddress: str | None = None,
+                 consensusThreshold: int | None = None) -> None:
         """
         Initialize the QRiNG emulator to match smart contract structure
         
         Args:
-            bitstring_length (int): Length of bitstrings (matches smart contract array size)
+            bitstringLength (int): Length of bitstrings (matches smart contract array size)
+            adminAddress (str): Address of the contract deployer (admin). Set in constructor
+                to mirror the Solidity constructor() behavior.
+            consensusThreshold (int | None): Minimum matching bits for
+                consensus. Defaults to bitstringLength // 2.
         """
         # Smart contract state variables
         self.voters = []  # Array of Voter structs
-        self.admin = None
-        self.voting_active = False
+        self.admin = adminAddress
+        self.votingActive = False
+        self.initialized = False  # Guard against re-initialization (C5)
         self.counter = []  # 2D array for bitstrings
-        self.bitstring_length = bitstring_length
+        self.bitstringLength = bitstringLength
+        self.consensusThreshold = consensusThreshold if consensusThreshold is not None else bitstringLength // 2
         
         # Emulation tracking
-        self.transaction_log = []
-        self.gas_consumption = {}
-        self.events_emitted = []
+        self.transactionLog = []
+        self.gasConsumption = {}
+        self.eventsEmitted = []
         
         # Address simulation (using string addresses like Ethereum)
         self.addresses = []
     
-    def _log_transaction(self, function_name, caller, gas_used, success=True, revert_reason=None):
+    def _logTransaction(self, functionName: str, caller: str, gasUsed: int,
+                        success: bool = True, revertReason: str | None = None) -> None:
         """Log transaction details for emulation tracking"""
         tx = {
             'timestamp': datetime.now().isoformat(),
-            'function': function_name,
+            'function': functionName,
             'caller': caller,
-            'gas_used': gas_used,
+            'gasUsed': gasUsed,
             'success': success,
-            'revert_reason': revert_reason,
-            'block_number': len(self.transaction_log) + 1
+            'revertReason': revertReason,
+            'blockNumber': len(self.transactionLog) + 1
         }
-        self.transaction_log.append(tx)
+        self.transactionLog.append(tx)
         
-        if function_name not in self.gas_consumption:
-            self.gas_consumption[function_name] = []
-        self.gas_consumption[function_name].append(gas_used)
+        if functionName not in self.gasConsumption:
+            self.gasConsumption[functionName] = []
+        self.gasConsumption[functionName].append(gasUsed)
     
-    def _emit_event(self, event_name, event_data):
+    def _emitEvent(self, eventName: str, eventData: dict) -> None:
         """Emulate event emission"""
         event = {
-            'event': event_name,
-            'data': event_data,
-            'block_number': len(self.transaction_log) + 1,
+            'event': eventName,
+            'data': eventData,
+            'blockNumber': len(self.transactionLog) + 1,
             'timestamp': datetime.now().isoformat()
         }
-        self.events_emitted.append(event)
+        self.eventsEmitted.append(event)
     
-    def add_new_string(self, new_string, caller_address):
+    def addNewString(self, newString: list[list[int]], callerAddress: str) -> bool:
         """
         Emulate addNewString function from smart contract
-        function addNewString(uint[][] memory newString) public
+        function addNewString(uint[][] memory newString) public onlyAdmin
         """
-        print(f"Executing addNewString() called by {caller_address}")
+        print(f"Executing addNewString() called by {callerAddress}")
         
         # Gas calculation (approximate)
-        gas_used = 21000 + len(new_string) * len(new_string[0]) * 20  # Base + storage cost
+        rowLen = len(newString[0]) if newString else 0
+        gasUsed = 21000 + len(newString) * rowLen * 20  # Base + storage cost
         
         try:
+            # Enforce admin-only access control (C4)
+            if callerAddress != self.admin:
+                raise Exception("Only admin can call this function")
+
+            # Validate all rows are the same length
+            if newString:
+                expectedLen = len(newString[0])
+                for idx, row in enumerate(newString):
+                    if len(row) != expectedLen:
+                        raise Exception(
+                            f"Row {idx} length {len(row)} does not match "
+                            f"expected length {expectedLen}"
+                        )
+
             # Store the new bitstrings
-            self.counter = [list(bitstring) for bitstring in new_string]
+            self.counter = [list(bitstring) for bitstring in newString]
             
-            self._log_transaction('addNewString', caller_address, gas_used, True)
-            print(f"✓ Bitstrings stored successfully. Gas used: {gas_used}")
+            self._logTransaction('addNewString', callerAddress, gasUsed, True)
+            print(f"✓ Bitstrings stored successfully. Gas used: {gasUsed}")
             return True
             
         except Exception as e:
-            self._log_transaction('addNewString', caller_address, gas_used, False, str(e))
+            self._logTransaction('addNewString', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return False
     
-    def set_addresses(self, voter_addresses, caller_address):
+    def setAddresses(self, voterAddresses: list[str], callerAddress: str) -> bool:
         """
         Emulate setAddresses function from smart contract
-        function setAddresses(address[] memory voterAddresses) public
+        function setAddresses(address[] memory voterAddresses) public onlyAdmin
         """
-        print(f"Executing setAddresses() called by {caller_address}")
+        print(f"Executing setAddresses() called by {callerAddress}")
         
         # Gas calculation based on number of voters to register
-        gas_used = 21000 + len(voter_addresses) * 50000  # Base + voter creation cost
+        gasUsed = 21000 + len(voterAddresses) * 50000  # Base + voter creation cost
         
         try:
-            # Initialize admin and voting system state
-            self.admin = caller_address
-            self.voting_active = True
-            self.addresses = voter_addresses
+            # Enforce admin-only access control (C5)
+            if callerAddress != self.admin:
+                raise Exception("Only admin can call this function")
+
+            # Guard against re-initialization (C5)
+            if self.initialized:
+                raise Exception("Already initialized")
+            self.initialized = True
+
+            # Initialize voting system state
+            self.votingActive = True
+            self.addresses = voterAddresses
             
             # Create voter structs matching Solidity contract structure
             self.voters = []
-            for x, address in enumerate(voter_addresses):
+            for x, address in enumerate(voterAddresses):
                 if x < len(self.counter):
                     # Create voter struct matching Solidity contract fields
                     voter = {
@@ -127,216 +160,197 @@ class QRiNGEmulator:
                     self.voters.append(voter)
                     
                     # Emit event for off-chain monitoring
-                    self._emit_event('VoterRegistered', {'voter': address})
+                    self._emitEvent('VoterRegistered', {'voter': address})
             
-            self._log_transaction('setAddresses', caller_address, gas_used, True)
+            self._logTransaction('setAddresses', callerAddress, gasUsed, True)
             print(f"✓ {len(self.voters)} voters registered. Admin set to {self.admin}")
-            print(f"  Gas used: {gas_used}")
+            print(f"  Gas used: {gasUsed}")
             return True
             
         except Exception as e:
-            self._log_transaction('setAddresses', caller_address, gas_used, False, str(e))
+            self._logTransaction('setAddresses', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return False
     
-    def start_voting(self, caller_address):
-        """
-        Emulate startVoting function from smart contract
-        function startVoting() external onlyAdmin
-        """
-        print(f"Executing startVoting() called by {caller_address}")
-        
-        gas_used = 21000  # Base gas cost
-        
-        try:
-            # Enforce admin-only access control (onlyAdmin modifier)
-            if caller_address != self.admin:
-                raise Exception("Only admin can call this function")
-            
-            # Prevent duplicate voting activation
-            if self.voting_active:
-                raise Exception("Voting is already active")
-            
-            # Activate the voting process
-            self.voting_active = True
-            
-            self._log_transaction('startVoting', caller_address, gas_used, True)
-            print(f"✓ Voting started. Gas used: {gas_used}")
-            return True
-            
-        except Exception as e:
-            self._log_transaction('startVoting', caller_address, gas_used, False, str(e))
-            print(f"✗ Transaction failed: {e}")
-            return False
-    
-    def end_voting(self, caller_address):
+    def endVoting(self, callerAddress: str) -> bool:
         """
         Emulate endVoting function from smart contract
         function endVoting() external onlyAdmin
         """
-        print(f"Executing endVoting() called by {caller_address}")
+        print(f"Executing endVoting() called by {callerAddress}")
         
-        gas_used = 21000  # Base gas cost
+        gasUsed = 21000  # Base gas cost
         
         try:
             # Enforce admin-only access for ending voting
-            if caller_address != self.admin:
+            if callerAddress != self.admin:
                 raise Exception("Only admin can call this function")
             
             # Ensure voting is currently active before ending
-            if not self.voting_active:
+            if not self.votingActive:
                 raise Exception("Voting is not active")
             
             # Deactivate voting system
-            self.voting_active = False
+            self.votingActive = False
             
             # Notify external systems that voting has concluded
-            self._emit_event('VotingEnded', {})
+            self._emitEvent('VotingEnded', {})
             
-            self._log_transaction('endVoting', caller_address, gas_used, True)
-            print(f"✓ Voting ended. Gas used: {gas_used}")
+            self._logTransaction('endVoting', callerAddress, gasUsed, True)
+            print(f"✓ Voting ended. Gas used: {gasUsed}")
             return True
             
         except Exception as e:
-            self._log_transaction('endVoting', caller_address, gas_used, False, str(e))
+            self._logTransaction('endVoting', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return False
     
-    def check(self, from_node, caller_address):
+    def check(self, fromNode: int, callerAddress: str) -> bool:
         """
         Emulate check function from smart contract
         function check(uint from) external onlyActive
         """
-        print(f"Executing check({from_node}) called by {caller_address}")
+        print(f"Executing check({fromNode}) called by {callerAddress}")
         
         # Gas calculation (complex function with loops)
-        gas_used = 21000 + len(self.voters) * len(self.voters[0]['bitstring']) * 10
+        gasUsed = 21000 + len(self.voters) * len(self.voters[0]['bitstring']) * 10
         
         try:
             # Check onlyActive modifier
-            if not self.voting_active:
+            if not self.votingActive:
                 raise Exception("Voting is not active")
             
             # Check authorization
-            if from_node >= len(self.voters) or self.voters[from_node]['delegate'] != caller_address:
+            if fromNode >= len(self.voters) or self.voters[fromNode]['delegate'] != callerAddress:
                 raise Exception("Not authorized")
             
             # Check if already voted
-            if self.voters[from_node]['hasVoted']:
+            if self.voters[fromNode]['hasVoted']:
                 raise Exception("Voter has already voted")
               # Perform the check logic (exact replication of Solidity code)
-            bitstring_length = len(self.voters[from_node]['bitstring']) // 2  # Threshold for correlation
+            bitstringLength = self.consensusThreshold  # Configurable threshold
             
             # Compare this voter's bitstring with all other voters
             for i in range(len(self.voters)):
-                if from_node != i:
+                if fromNode != i:
                     add = 0  # Counter for matching bits
                     # Count matching bits between bitstrings
-                    for j in range(len(self.voters[from_node]['bitstring'])):
-                        if (self.voters[from_node]['bitstring'][j] == 
+                    for j in range(len(self.voters[fromNode]['bitstring'])):
+                        if (self.voters[fromNode]['bitstring'][j] == 
                             self.voters[i]['bitstring'][j]):
                             add += 1
                     
                     # If correlation exceeds threshold, increment vote count
-                    if add > bitstring_length:
+                    if add > bitstringLength:
                         self.voters[i]['voteCount'] += 1
             
             # Mark as voted to prevent double-voting
-            self.voters[from_node]['hasVoted'] = True
+            self.voters[fromNode]['hasVoted'] = True
             
-            self._log_transaction('check', caller_address, gas_used, True)
-            print(f"✓ Check completed for node {from_node}. Gas used: {gas_used}")
+            self._logTransaction('check', callerAddress, gasUsed, True)
+            print(f"✓ Check completed for node {fromNode}. Gas used: {gasUsed}")
             return True
             
         except Exception as e:
-            self._log_transaction('check', caller_address, gas_used, False, str(e))
+            self._logTransaction('check', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return False
     
-    def get_winner(self, caller_address):
+    def getWinner(self, callerAddress: str) -> int | None:
         """
         Emulate getWinner function from smart contract
         function getWinner() external view returns (uint8)
         """
-        print(f"Executing getWinner() called by {caller_address}")
+        print(f"Executing getWinner() called by {callerAddress}")
         
-        gas_used = 5000  # View function, lower gas cost
+        gasUsed = 5000  # View function, lower gas cost
         
         try:
             # Check if voting is still active
-            if self.voting_active:
+            if self.votingActive:
                 raise Exception("Voting is still active")
             
-            sum_count = 0
+            sumCount = 0
             length = len(self.voters) // 2
             
             for i in range(len(self.voters)):
                 if self.voters[i]['voteCount'] > length:
-                    sum_count += 1
+                    sumCount += 1
             
-            self._log_transaction('getWinner', caller_address, gas_used, True)
-            print(f"✓ getWinner() returned {sum_count}. Gas used: {gas_used}")
-            return sum_count
+            self._logTransaction('getWinner', callerAddress, gasUsed, True)
+            print(f"✓ getWinner() returned {sumCount}. Gas used: {gasUsed}")
+            return sumCount
             
         except Exception as e:
-            self._log_transaction('getWinner', caller_address, gas_used, False, str(e))
+            self._logTransaction('getWinner', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return None
     
-    def random_number(self, caller_address):
+    def randomNumber(self, callerAddress: str) -> list[int] | None:
         """
         Emulate randomNumber function from smart contract
-        function randomNumber() external view returns (uint[6] memory newBitstring)
+        function randomNumber() external view returns (uint[] memory)
         """
-        print(f"Executing randomNumber() called by {caller_address}")
+        print(f"Executing randomNumber() called by {callerAddress}")
         
-        gas_used = 10000  # View function with computation
+        gasUsed = 10000  # View function with computation
         
         try:            # Check if voting is still active
-            if self.voting_active:
+            if self.votingActive:
                 raise Exception("Voting is still active")
+
+            if not self.voters:
+                raise Exception("No voters registered")
             
-            # Initialize result bitstring with zeros
-            new_bitstring = [0] * self.bitstring_length
+            # Determine bitstring length dynamically from first voter (C6)
+            bitstringLength = len(self.voters[0]['bitstring'])
+            newBitstring = [0] * bitstringLength
             length = len(self.voters) // 2  # Majority threshold
             
-            # XOR operation on honest nodes (exact Solidity replication)
+            # XOR operation on honest nodes (C6: use ^= for gas efficiency)
             for i in range(len(self.voters)):
                 # Only include voters with sufficient vote count (honest nodes)
                 if self.voters[i]['voteCount'] > length:
                     # XOR each bit position
                     for x in range(len(self.voters[i]['bitstring'])):
-                        if x < self.bitstring_length:  # Ensure we don't exceed array bounds
-                            new_bitstring[x] += self.voters[i]['bitstring'][x]
-                            new_bitstring[x] %= 2  # Ensure binary result (XOR operation)
+                        newBitstring[x] ^= self.voters[i]['bitstring'][x]
             
-            self._log_transaction('randomNumber', caller_address, gas_used, True)
-            print(f"✓ randomNumber() returned {new_bitstring}. Gas used: {gas_used}")
-            return new_bitstring
+            self._logTransaction('randomNumber', callerAddress, gasUsed, True)
+            print(f"✓ randomNumber() returned {newBitstring}. Gas used: {gasUsed}")
+            return newBitstring
             
         except Exception as e:
-            self._log_transaction('randomNumber', caller_address, gas_used, False, str(e))
+            self._logTransaction('randomNumber', callerAddress, gasUsed, False, str(e))
             print(f"✗ Transaction failed: {e}")
             return None
     
-    def get_voter_info(self, voter_index):
+    def getVoterInfo(self, voterIndex: int) -> dict | None:
         """Helper function to get voter information"""
-        if 0 <= voter_index < len(self.voters):
-            return self.voters[voter_index].copy()
+        if 0 <= voterIndex < len(self.voters):
+            return self.voters[voterIndex].copy()
         return None
     
-    def get_contract_state(self):
+    def getContractState(self) -> dict:
         """Get complete contract state for visualization"""
         return {
             'admin': self.admin,
-            'voting_active': self.voting_active,
-            'num_voters': len(self.voters),
+            'votingActive': self.votingActive,
+            'numVoters': len(self.voters),
             'voters': [voter.copy() for voter in self.voters],
-            'transaction_count': len(self.transaction_log),
-            'events_count': len(self.events_emitted)
+            'transactionCount': len(self.transactionLog),
+            'eventsCount': len(self.eventsEmitted)
         }
 
-def create_smart_contract_execution_visualization(emulator, save_path):
+    # Deprecation aliases (old snake_case names still work)
+    add_new_string = addNewString
+    set_addresses = setAddresses
+    end_voting = endVoting
+    get_winner = getWinner
+    random_number = randomNumber
+    get_voter_info = getVoterInfo
+    get_contract_state = getContractState
+
+def createSmartContractExecutionVisualization(emulator: QRiNGEmulator, save_path: str) -> None:
     """
     Create comprehensive visualization of smart contract execution
     """
@@ -349,21 +363,21 @@ def create_smart_contract_execution_visualization(emulator, save_path):
     ax1 = fig.add_subplot(gs[0, :])
     ax1.set_title("Smart Contract Transaction Timeline", fontsize=16, fontweight='bold')
     
-    if emulator.transaction_log:
-        timestamps = [i for i in range(len(emulator.transaction_log))]
-        functions = [tx['function'] for tx in emulator.transaction_log]
-        gas_used = [tx['gas_used'] for tx in emulator.transaction_log]
-        success = [tx['success'] for tx in emulator.transaction_log]
+    if emulator.transactionLog:
+        timestamps = [i for i in range(len(emulator.transactionLog))]
+        functions = [tx['function'] for tx in emulator.transactionLog]
+        gasUsed = [tx['gasUsed'] for tx in emulator.transactionLog]
+        success = [tx['success'] for tx in emulator.transactionLog]
         
         # Color code by success/failure
         colors = ['green' if s else 'red' for s in success]
         
-        bars = ax1.bar(timestamps, gas_used, color=colors, alpha=0.7, edgecolor='black')
+        bars = ax1.bar(timestamps, gasUsed, color=colors, alpha=0.7, edgecolor='black')
         
         # Add function labels
         for i, (bar, func) in enumerate(zip(bars, functions)):
             height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()/2., height + max(gas_used) * 0.01,
+            ax1.text(bar.get_x() + bar.get_width()/2., height + max(gasUsed) * 0.01,
                     func, ha='center', va='bottom', rotation=45, fontsize=9)
         
         ax1.set_xlabel('Transaction Number')
@@ -447,9 +461,9 @@ def create_smart_contract_execution_visualization(emulator, save_path):
     ax4 = fig.add_subplot(gs[1, 2])
     ax4.set_title("Gas Consumption by Function", fontsize=14, fontweight='bold')
     
-    if emulator.gas_consumption:
-        functions = list(emulator.gas_consumption.keys())
-        avg_gas = [np.mean(emulator.gas_consumption[func]) for func in functions]
+    if emulator.gasConsumption:
+        functions = list(emulator.gasConsumption.keys())
+        avg_gas = [np.mean(emulator.gasConsumption[func]) for func in functions]
         
         bars = ax4.bar(functions, avg_gas, color='lightblue', alpha=0.7, edgecolor='black')
         
@@ -514,7 +528,7 @@ def create_smart_contract_execution_visualization(emulator, save_path):
     
     if emulator.voters:
         num_voters = len(emulator.voters)
-        bitstring_length = len(emulator.voters[0]['bitstring'])
+        bitstringLength = len(emulator.voters[0]['bitstring'])
         
         # Create bitstring matrix
         bitstring_matrix = np.array([voter['bitstring'] for voter in emulator.voters])
@@ -523,12 +537,12 @@ def create_smart_contract_execution_visualization(emulator, save_path):
         ax6.set_yticks(range(num_voters))
         ax6.set_yticklabels([f"V{i} (VC:{emulator.voters[i]['voteCount']})" 
                             for i in range(num_voters)])
-        ax6.set_xticks(range(bitstring_length))
-        ax6.set_xticklabels([f'B{i}' for i in range(bitstring_length)])
+        ax6.set_xticks(range(bitstringLength))
+        ax6.set_xticklabels([f'B{i}' for i in range(bitstringLength)])
         
         # Add bit values
         for i in range(num_voters):
-            for j in range(bitstring_length):
+            for j in range(bitstringLength):
                 color = 'white' if bitstring_matrix[i, j] == 0 else 'black'
                 ax6.text(j, i, f'{bitstring_matrix[i, j]}', 
                         ha='center', va='center', color=color, fontweight='bold')
@@ -540,13 +554,13 @@ def create_smart_contract_execution_visualization(emulator, save_path):
     ax7.set_title("Contract Events", fontsize=14, fontweight='bold')
     ax7.axis('off')
     
-    if emulator.events_emitted:
+    if emulator.eventsEmitted:
         event_text = "Emitted Events:\n\n"
-        for i, event in enumerate(emulator.events_emitted[-5:]):  # Show last 5 events
+        for i, event in enumerate(emulator.eventsEmitted[-5:]):  # Show last 5 events
             event_text += f"{i+1}. {event['event']}\n"
             if 'voter' in event['data']:
                 event_text += f"   Voter: {event['data']['voter'][:10]}...\n"
-            event_text += f"   Block: {event['block_number']}\n\n"
+            event_text += f"   Block: {event['blockNumber']}\n\n"
     else:
         event_text = "No events emitted yet"
     
@@ -561,15 +575,17 @@ def create_smart_contract_execution_visualization(emulator, save_path):
     plt.close(fig)
     print(f"Smart contract execution visualization saved to {save_path}")
 
-def run_emulation_demo():
+def runEmulationDemo() -> QRiNGEmulator:
     """
     Run a complete demonstration of the QRiNG smart contract emulation
     """
     print("Starting QRiNG Smart Contract Emulation Demo")
     print("=" * 60)
     
-    # Initialize emulator
-    emulator = QRiNGEmulator(bitstring_length=6)
+    adminAddress = "0x1234567890123456789012345678901234567890"
+
+    # Initialize emulator with admin set in constructor (mirrors Solidity constructor)
+    emulator = QRiNGEmulator(bitstringLength=6, adminAddress=adminAddress)
     
     # Generate test data (6 nodes with 6-bit strings to match smart contract)
     test_bitstrings = [
@@ -591,16 +607,14 @@ def run_emulation_demo():
         "0xC8A7F6E5D4C3B2A1F0E9D8C7B6A5F4E3D2C1B0A9"
     ]
     
-    admin_address = "0x1234567890123456789012345678901234567890"
-    
     print("Phase 1: Contract Deployment and Setup")
     print("-" * 40)
     
     # 1. Add bitstrings
-    emulator.add_new_string(test_bitstrings, admin_address)
+    emulator.addNewString(test_bitstrings, adminAddress)
     
     # 2. Set addresses
-    emulator.set_addresses(test_addresses, admin_address)
+    emulator.setAddresses(test_addresses, adminAddress)
     
     print("\nPhase 2: Voting Process")
     print("-" * 40)
@@ -613,10 +627,10 @@ def run_emulation_demo():
     print("-" * 40)
     
     # 4. End voting
-    emulator.end_voting(admin_address)
+    emulator.endVoting(adminAddress)
       # 5. Get results
-    winner_count = emulator.get_winner(admin_address)
-    final_random = emulator.random_number(admin_address)
+    winner_count = emulator.getWinner(adminAddress)
+    final_random = emulator.randomNumber(adminAddress)
     
     print(f"\nEMULATION RESULTS:")
     print(f"Honest nodes count: {winner_count}")
@@ -626,27 +640,31 @@ def run_emulation_demo():
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Plots")
     execution_viz_path = os.path.join(output_dir, "qring_emulator_execution.png")
     
-    create_smart_contract_execution_visualization(emulator, execution_viz_path)
+    createSmartContractExecutionVisualization(emulator, execution_viz_path)
     
     print(f"\nVisualization files created:")
     print(f"- Execution visualization: {execution_viz_path}")
     
     return emulator
 
+# Deprecation aliases for standalone functions
+create_smart_contract_execution_visualization = createSmartContractExecutionVisualization
+run_emulation_demo = runEmulationDemo
+
 if __name__ == "__main__":
     try:
         # Execute the complete smart contract emulation demonstration
-        emulator = run_emulation_demo()
+        emulator = runEmulationDemo()
         print("\nQRiNG smart contract emulation completed successfully!")
         
         # Display final contract state for verification and analysis
-        state = emulator.get_contract_state()
+        state = emulator.getContractState()
         print(f"\nFinal Contract State:")
         print(f"- Admin: {state['admin'][:10]}...")      # Show first 10 chars of admin address
-        print(f"- Voting Active: {state['voting_active']}")
-        print(f"- Number of Voters: {state['num_voters']}")
-        print(f"- Total Transactions: {state['transaction_count']}")
-        print(f"- Events Emitted: {state['events_count']}")
+        print(f"- Voting Active: {state['votingActive']}")
+        print(f"- Number of Voters: {state['numVoters']}")
+        print(f"- Total Transactions: {state['transactionCount']}")
+        print(f"- Events Emitted: {state['eventsCount']}")
         
     except Exception as e:
         # Handle any errors during emulation execution
