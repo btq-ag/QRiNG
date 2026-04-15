@@ -16,6 +16,8 @@ All animations are professionally rendered with smooth transitions and detailed 
 Author: Jeffrey Morais, BTQ
 """
 
+from __future__ import annotations
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -37,18 +39,18 @@ class QRiNGVisualizer:
     Comprehensive visualization suite for QRiNG protocol animations
     """
     
-    def __init__(self, output_dir=None):
+    def __init__(self, outputDir: str | None = None) -> None:
         """
         Initialize the visualization suite
         
         Args:
-            output_dir (str): Directory to save animation files
+            outputDir (str): Directory to save animation files
         """
-        if output_dir is None:
-            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Plots")
-        self.output_dir = output_dir
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        if outputDir is None:
+            outputDir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Plots")
+        self.outputDir = outputDir
+        if not os.path.exists(outputDir):
+            os.makedirs(outputDir)
         
         # Color scheme for professional appearance
         self.colors = {
@@ -67,14 +69,14 @@ class QRiNGVisualizer:
         plt.style.use('seaborn-v0_8-whitegrid')
         sns.set_palette("husl")
     
-    def animate_qkd_process(self, save_path):
+    def animateQkdProcess(self, savePath: str) -> None:
         """
         Animate the Quantum Key Distribution process between network nodes
         """
         print("Creating QKD process animation...")
         
         # Initialize simulator for data
-        simulator = QRiNGSimulator(num_nodes=4, bitstring_length=6, seed=42)
+        simulator = QRiNGSimulator(numNodes=4, bitstringLength=6, seed=42)
         
         # Set up the figure
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
@@ -263,12 +265,12 @@ class QRiNGVisualizer:
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                      frames=60, interval=150, blit=False)
         
-        print(f"Saving QKD animation to {save_path}")
-        anim.save(save_path, writer='pillow', fps=8, dpi=100)
+        print(f"Saving QKD animation to {savePath}")
+        anim.save(savePath, writer='pillow', fps=8, dpi=100)
         plt.close(fig)
         print("QKD animation completed")
     
-    def animate_consensus_mechanism(self, save_path):
+    def animateConsensusMechanism(self, savePath: str) -> None:
         """
         Animate the consensus mechanism and node validation process
         Shows how nodes validate each other through bitstring comparison
@@ -276,11 +278,11 @@ class QRiNGVisualizer:
         print("Creating consensus mechanism animation...")
         
         # Initialize simulator and generate quantum bitstrings
-        simulator = QRiNGSimulator(num_nodes=6, bitstring_length=8, seed=42)
+        simulator = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=42)
         
         # Execute the consensus process where each node validates others
         for node in simulator.nodes:
-            simulator.perform_consensus_check(node)
+            simulator.performConsensusCheck(node)
         
         # Set up figure with 2x2 subplot layout
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
@@ -340,14 +342,14 @@ class QRiNGVisualizer:
                     if node == current_checker:
                         color = self.colors['active']
                         size = 0.2
-                    elif simulator.has_voted[node]:
+                    elif simulator.hasVoted[node]:
                         color = self.colors['quantum']
                         size = 0.15
                     else:
                         color = self.colors['inactive']
                         size = 0.15
                 else:  # After consensus
-                    if node in simulator.honest_nodes:
+                    if node in simulator.honestNodes:
                         color = self.colors['honest']
                         size = 0.2
                     else:
@@ -362,7 +364,7 @@ class QRiNGVisualizer:
                 
                 # Vote count display
                 if phase > 10:
-                    ax1.text(x, y-0.35, f'Votes: {int(simulator.vote_counts[node])}', 
+                    ax1.text(x, y-0.35, f'Votes: {int(simulator.voteCounts[node])}', 
                            ha='center', va='center', fontsize=8)
               # Draw checking process arrows between nodes
             if phase < 60 and current_checker < 6:
@@ -384,8 +386,8 @@ class QRiNGVisualizer:
                 for i in range(6):
                     for j in range(6):
                         if i != j:
-                            similarity = simulator.calculate_bitstring_similarity(i, j)
-                            similarity_matrix[i, j] = similarity / simulator.bitstring_length  # Normalize
+                            similarity = simulator.calculateBitstringSimilarity(i, j)
+                            similarity_matrix[i, j] = similarity / simulator.bitstringLength  # Normalize
                 
                 # Display as heatmap
                 im = ax2.imshow(similarity_matrix, cmap='RdYlGn', vmin=0, vmax=1)
@@ -405,12 +407,12 @@ class QRiNGVisualizer:
             # Display vote count evolution with threshold visualization
             if phase > 15:
                 nodes = list(range(6))
-                vote_counts = [simulator.vote_counts[node] for node in nodes]
+                voteCounts = [simulator.voteCounts[node] for node in nodes]
                 
                 # Color bars based on honesty threshold
-                bars = ax3.bar(nodes, vote_counts, 
+                bars = ax3.bar(nodes, voteCounts, 
                              color=[self.colors['honest'] if vc > 3 else self.colors['classical'] 
-                                   for vc in vote_counts],
+                                   for vc in voteCounts],
                              alpha=0.7, edgecolor='black', linewidth=1)
                 
                 ax3.set_xlabel('Node ID')
@@ -422,7 +424,7 @@ class QRiNGVisualizer:
                 ax3.legend()
                 
                 # Add vote count labels
-                for bar, count in zip(bars, vote_counts):
+                for bar, count in zip(bars, voteCounts):
                     height = bar.get_height()
                     ax3.text(bar.get_x() + bar.get_width()/2., height + 0.1,
                            f'{int(count)}', ha='center', va='bottom', fontsize=10)
@@ -430,9 +432,9 @@ class QRiNGVisualizer:
             # Node status summary
             if phase > 30:
                 status_data = {
-                    'Honest Nodes': len(simulator.honest_nodes),
-                    'Total Nodes': simulator.num_nodes,
-                    'Dishonest Nodes': simulator.num_nodes - len(simulator.honest_nodes)
+                    'Honest Nodes': len(simulator.honestNodes),
+                    'Total Nodes': simulator.numNodes,
+                    'Dishonest Nodes': simulator.numNodes - len(simulator.honestNodes)
                 }
                 
                 labels = list(status_data.keys())
@@ -458,22 +460,22 @@ class QRiNGVisualizer:
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                      frames=72, interval=200, blit=False)
         
-        print(f"Saving consensus animation to {save_path}")
-        anim.save(save_path, writer='pillow', fps=6, dpi=100)
+        print(f"Saving consensus animation to {savePath}")
+        anim.save(savePath, writer='pillow', fps=6, dpi=100)
         plt.close(fig)
         print("Consensus animation completed")
     
-    def animate_smart_contract_execution(self, save_path):
+    def animateSmartContractExecution(self, savePath: str) -> None:
         """
         Animate the smart contract execution flow with emulator comparison
         """
         print("Creating smart contract execution animation...")
         
-        # Initialize emulator
-        emulator = QRiNGEmulator(bitstring_length=6)
-        
         # Prepare test data
         test_addresses = [f"0x{i:040x}" for i in range(4)]
+
+        # Initialize emulator with admin set in constructor (mirrors Solidity)
+        emulator = QRiNGEmulator(bitstringLength=6, admin_address=test_addresses[0])
         test_bitstrings = [[1, 0, 1, 1, 0, 1], [0, 1, 1, 0, 1, 0], 
                           [1, 1, 0, 1, 0, 1], [0, 0, 1, 1, 1, 0]]
         
@@ -481,6 +483,9 @@ class QRiNGVisualizer:
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
         fig.suptitle('QRiNG: Smart Contract Execution Flow', fontsize=18, fontweight='bold')
         
+        # Cache for randomNumber result (computed once, not per-frame)
+        cachedRandomBits = [None]
+
         def init():
             for ax in [ax1, ax2, ax3, ax4]:
                 ax.clear()
@@ -505,17 +510,15 @@ class QRiNGVisualizer:
             
             # Execute contract functions based on phase
             if phase == 10:
-                emulator.add_new_string(test_bitstrings, test_addresses[0])
+                emulator.addNewString(test_bitstrings, test_addresses[0])
             elif phase == 20:
-                emulator.set_addresses(test_addresses, test_addresses[0])
-            elif phase == 30:
-                emulator.start_voting(test_addresses[0])
+                emulator.setAddresses(test_addresses, test_addresses[0])
             elif phase >= 35 and phase < 55:
                 check_node = (phase - 35) // 5
                 if check_node < len(test_addresses):
                     emulator.check(check_node, test_addresses[check_node])
             elif phase == 60:
-                emulator.end_voting(test_addresses[0])
+                emulator.endVoting(test_addresses[0])
               # Contract state visualization layout
             ax1.set_xlim(0, 10)
             ax1.set_ylim(0, 8)
@@ -531,13 +534,13 @@ class QRiNGVisualizer:
                    ha='center', va='center', fontsize=10, fontweight='bold')
             
             # Voting status indicator with color coding
-            voting_color = self.colors['active'] if emulator.voting_active else self.colors['inactive']
+            voting_color = self.colors['active'] if emulator.votingActive else self.colors['inactive']
             voting_box = FancyBboxPatch((4.5, 6.5), 3, 1,
                                       boxstyle="round,pad=0.1",
                                       facecolor=voting_color,
                                       edgecolor='black', linewidth=2)
             ax1.add_patch(voting_box)
-            ax1.text(6, 7, f'Voting: {"Active" if emulator.voting_active else "Inactive"}',
+            ax1.text(6, 7, f'Voting: {"Active" if emulator.votingActive else "Inactive"}',
                    ha='center', va='center', fontsize=10, fontweight='bold')
             
             # Display individual voter states and information
@@ -574,14 +577,14 @@ class QRiNGVisualizer:
             ax1.axis('off')
             
             # Transaction flow
-            if emulator.transaction_log:
-                ax2.set_xlim(0, len(emulator.transaction_log) + 1)
-                ax2.set_ylim(-0.5, len(set(tx['function'] for tx in emulator.transaction_log)) + 0.5)
+            if emulator.transactionLog:
+                ax2.set_xlim(0, len(emulator.transactionLog) + 1)
+                ax2.set_ylim(-0.5, len(set(tx['function'] for tx in emulator.transactionLog)) + 0.5)
                 
-                functions = list(set(tx['function'] for tx in emulator.transaction_log))
+                functions = list(set(tx['function'] for tx in emulator.transactionLog))
                 function_y = {func: i for i, func in enumerate(functions)}
                 
-                for i, tx in enumerate(emulator.transaction_log):
+                for i, tx in enumerate(emulator.transactionLog):
                     y = function_y[tx['function']]
                     color = self.colors['honest'] if tx['success'] else self.colors['dishonest']
                     
@@ -590,7 +593,7 @@ class QRiNGVisualizer:
                     
                     # Connect transactions
                     if i > 0:
-                        prev_y = function_y[emulator.transaction_log[i-1]['function']]
+                        prev_y = function_y[emulator.transactionLog[i-1]['function']]
                         ax2.plot([i, i+1], [prev_y, y], 'k--', alpha=0.5)
                 
                 ax2.set_yticks(range(len(functions)))
@@ -599,9 +602,9 @@ class QRiNGVisualizer:
                 ax2.grid(True, alpha=0.3)
             
             # Gas consumption
-            if emulator.gas_consumption:
-                functions = list(emulator.gas_consumption.keys())
-                total_gas = [sum(emulator.gas_consumption[func]) for func in functions]
+            if emulator.gasConsumption:
+                functions = list(emulator.gasConsumption.keys())
+                total_gas = [sum(emulator.gasConsumption[func]) for func in functions]
                 
                 bars = ax3.bar(functions, total_gas, 
                              color=self.colors['quantum'], alpha=0.7,
@@ -620,10 +623,11 @@ class QRiNGVisualizer:
             # Final random output
             if phase > 65:
                 try:
-                    final_bits = emulator.random_number(test_addresses[0])
-                    if final_bits['success']:
-                        bits = final_bits['result']
-                        
+                    # Compute once and cache (avoids per-frame side effects)
+                    if cachedRandomBits[0] is None:
+                        cachedRandomBits[0] = emulator.randomNumber(test_addresses[0])
+                    bits = cachedRandomBits[0]
+                    if bits is not None:
                         # Display as binary visualization
                         for i, bit in enumerate(bits):
                             color = self.colors['honest'] if bit == 1 else self.colors['classical']
@@ -638,10 +642,10 @@ class QRiNGVisualizer:
                         ax4.set_title(f'Final Random Bits: {"".join(map(str, bits))}', fontsize=14)
                         
                         # Add decimal representation
-                        decimal_value = sum(bit * (2 ** (len(bits) - 1 - i)) for i, bit in enumerate(bits))
-                        ax4.text(len(bits)/2, -0.3, f'Decimal: {decimal_value}', 
+                        decimalValue = sum(bit * (2 ** (len(bits) - 1 - i)) for i, bit in enumerate(bits))
+                        ax4.text(len(bits)/2, -0.3, f'Decimal: {decimalValue}', 
                                ha='center', va='center', fontsize=12, fontweight='bold')
-                except:
+                except Exception:
                     ax4.text(0.5, 0.5, 'Generating Random Bits...', 
                            ha='center', va='center', fontsize=14, 
                            transform=ax4.transAxes)
@@ -666,39 +670,45 @@ class QRiNGVisualizer:
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                      frames=80, interval=150, blit=False)
         
-        print(f"Saving smart contract animation to {save_path}")
-        anim.save(save_path, writer='pillow', fps=8, dpi=100)
+        print(f"Saving smart contract animation to {savePath}")
+        anim.save(savePath, writer='pillow', fps=8, dpi=100)
         plt.close(fig)
         print("Smart contract animation completed")
     
-    def animate_protocol_comparison(self, save_path):
+    def animateProtocolComparison(self, savePath: str) -> None:
         """
         Animate comparison between simulator, emulator, and theoretical Solidity execution
         """
         print("Creating protocol comparison animation...")
         
         # Initialize both simulator and emulator
-        simulator = QRiNGSimulator(num_nodes=4, bitstring_length=6, seed=42)
-        emulator = QRiNGEmulator(bitstring_length=6)
+        simulator = QRiNGSimulator(numNodes=4, bitstringLength=6, seed=42)
+        test_addresses = [f"0x{i:040x}" for i in range(4)]
+        emulator = QRiNGEmulator(bitstringLength=6, admin_address=test_addresses[0])
         
         # Run simulator
         for node in simulator.nodes:
-            simulator.perform_consensus_check(node)
-        simulator.generate_final_random_number()
+            simulator.performConsensusCheck(node)
+        simulator.generateFinalRandomNumber()
         
         # Setup emulator
         test_addresses = [f"0x{i:040x}" for i in range(4)]
         test_bitstrings = [simulator.bitstrings[i].tolist() for i in range(4)]
         
-        emulator.add_new_string(test_bitstrings, test_addresses[0])
-        emulator.set_addresses(test_addresses, test_addresses[0])
-        emulator.start_voting(test_addresses[0])
+        emulator.addNewString(test_bitstrings, test_addresses[0])
+        emulator.setAddresses(test_addresses, test_addresses[0])
         
         for i in range(4):
             emulator.check(i, test_addresses[i])
         
-        emulator.end_voting(test_addresses[0])
+        emulator.endVoting(test_addresses[0])
         
+        # Cache randomNumber result (computed once, not per-frame)
+        cachedEmuBits = emulator.randomNumber(test_addresses[0])
+
+        # Instance RNG for deterministic animations
+        vizRng = np.random.default_rng(42)
+
         # Set up the figure
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
         fig.suptitle('QRiNG: Protocol Implementation Comparison', fontsize=18, fontweight='bold')
@@ -725,12 +735,12 @@ class QRiNGVisualizer:
             phase = frame % 60
             
             # Comparison of results
-            sim_honest = len(simulator.honest_nodes)
+            sim_honest = len(simulator.honestNodes)
             emu_honest = len([v for v in emulator.voters if v['voteCount'] > len(emulator.voters)//2])
             
             # Bar comparison
             categories = ['Honest Nodes', 'Total Nodes', 'Consensus Time']
-            sim_values = [sim_honest, simulator.num_nodes, 0.5]  # Simulated time
+            sim_values = [sim_honest, simulator.numNodes, 0.5]  # Simulated time
             emu_values = [emu_honest, len(emulator.voters), 1.2]  # Emulated time
             
             x = np.arange(len(categories))
@@ -754,8 +764,8 @@ class QRiNGVisualizer:
             
             # Performance metrics over time
             time_points = np.linspace(0, 10, 50)
-            sim_performance = 100 * np.exp(-time_points/8) + np.random.normal(0, 2, 50)
-            emu_performance = 95 * np.exp(-time_points/10) + np.random.normal(0, 3, 50)
+            sim_performance = 100 * np.exp(-time_points/8) + vizRng.normal(0, 2, 50)
+            emu_performance = 95 * np.exp(-time_points/10) + vizRng.normal(0, 3, 50)
             
             current_time = min(49, int(phase * 0.8))
             
@@ -773,11 +783,10 @@ class QRiNGVisualizer:
             # Random bit comparison
             if phase > 20:
                 try:
-                    sim_bits = simulator.final_random_bits
-                    emu_result = emulator.random_number(test_addresses[0])
+                    sim_bits = simulator.finalRandomBits
                     
-                    if sim_bits is not None and emu_result['success']:
-                        emu_bits = emu_result['result']
+                    if sim_bits is not None and cachedEmuBits is not None:
+                        emu_bits = cachedEmuBits
                         
                         # Side-by-side bit display
                         ax3.set_xlim(-0.5, max(len(sim_bits), len(emu_bits)) + 0.5)
@@ -818,7 +827,7 @@ class QRiNGVisualizer:
                         
                         ax3.set_title(f'Random Bits: {"Match" if np.array_equal(sim_bits, emu_bits) else "Mismatch"}', 
                                     fontsize=14)
-                except:
+                except Exception:
                     ax3.text(0.5, 0.5, 'Generating comparison...', 
                            ha='center', va='center', fontsize=14, transform=ax3.transAxes)
             
@@ -855,11 +864,11 @@ class QRiNGVisualizer:
             if phase > 40:
                 summary_text = f"""
 Protocol Summary:
-• Nodes: {simulator.num_nodes}
-• Bitstring Length: {simulator.bitstring_length}
-• Honest Nodes: {len(simulator.honest_nodes)}
-• Consensus: {'Achieved' if len(simulator.honest_nodes) > 0 else 'Failed'}
-• Random Bits Generated: {'Yes' if simulator.final_random_bits is not None else 'No'}
+• Nodes: {simulator.numNodes}
+• Bitstring Length: {simulator.bitstringLength}
+• Honest Nodes: {len(simulator.honestNodes)}
+• Consensus: {'Achieved' if len(simulator.honestNodes) > 0 else 'Failed'}
+• Random Bits Generated: {'Yes' if simulator.finalRandomBits is not None else 'No'}
                 """
                 ax4.text(0.1, 0.3, summary_text, transform=ax4.transAxes,
                        fontsize=10, verticalalignment='top', fontfamily='monospace')
@@ -870,12 +879,12 @@ Protocol Summary:
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                      frames=60, interval=200, blit=False)
         
-        print(f"Saving comparison animation to {save_path}")
-        anim.save(save_path, writer='pillow', fps=6, dpi=100)
+        print(f"Saving comparison animation to {savePath}")
+        anim.save(savePath, writer='pillow', fps=6, dpi=100)
         plt.close(fig)
         print("Comparison animation completed")
     
-    def generate_all_animations(self):
+    def generateAllAnimations(self) -> None:
         """
         Generate all QRiNG animations
         """
@@ -883,16 +892,16 @@ Protocol Summary:
         print("=" * 60)
         
         animations = [
-            ("qkd_process.gif", self.animate_qkd_process),
-            ("consensus_mechanism.gif", self.animate_consensus_mechanism),
-            ("smart_contract_execution.gif", self.animate_smart_contract_execution),
-            ("protocol_comparison.gif", self.animate_protocol_comparison)
+            ("qkd_process.gif", self.animateQkdProcess),
+            ("consensus_mechanism.gif", self.animateConsensusMechanism),
+            ("smart_contract_execution.gif", self.animateSmartContractExecution),
+            ("protocol_comparison.gif", self.animateProtocolComparison)
         ]
         
         for filename, animation_func in animations:
-            save_path = os.path.join(self.output_dir, filename)
+            savePath = os.path.join(self.outputDir, filename)
             try:
-                animation_func(save_path)
+                animation_func(savePath)
                 print(f"✓ Successfully created: {filename}")
             except Exception as e:
                 print(f"✗ Failed to create {filename}: {e}")
@@ -900,10 +909,17 @@ Protocol Summary:
         
         print("=" * 60)
         print("QRiNG animation generation completed!")
-        print(f"All animations saved to: {self.output_dir}")
+        print(f"All animations saved to: {self.outputDir}")
+
+    # Deprecation aliases (old snake_case names still work)
+    animate_qkd_process = animateQkdProcess
+    animate_consensus_mechanism = animateConsensusMechanism
+    animate_smart_contract_execution = animateSmartContractExecution
+    animate_protocol_comparison = animateProtocolComparison
+    generate_all_animations = generateAllAnimations
 
 
-def main():
+def main() -> None:
     """CLI entry point for generating all QRiNG visualizations."""
     print("QRiNG Visualization Suite")
     print("Creating comprehensive animated visualizations...")
@@ -912,7 +928,7 @@ def main():
     visualizer = QRiNGVisualizer()
     
     # Generate all QRiNG protocol animations (QKD, consensus, smart contract)
-    visualizer.generate_all_animations()
+    visualizer.generateAllAnimations()
     
     print("\nAnimation generation complete!")
     print("Check the Plots folder for the generated GIF files.")

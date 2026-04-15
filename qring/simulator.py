@@ -7,10 +7,17 @@ This script simulates the QRiNG protocol by modeling:
 3. Final random number generation through XOR aggregation
 4. Comprehensive visualizations of the entire process
 
+When qiskit-aer is installed, bitstrings are generated from genuine
+Hadamard-gate circuits measured on AerSimulator. Otherwise, a classical
+PRNG fallback is used (clearly labeled).
+
 Author: Jeffrey Morais, BTQ
 """
 
+from __future__ import annotations
+
 import numpy as np
+import numpy.typing as npt
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyBboxPatch
@@ -19,50 +26,98 @@ import seaborn as sns
 import os
 from datetime import datetime
 
+try:
+    from qiskit import QuantumCircuit
+    from qiskit_aer import AerSimulator
+    _HAS_QISKIT = True
+except ImportError:
+    _HAS_QISKIT = False
+
 class QRiNGSimulator:
     """
     Simulator for the QRiNG (Quantum Random Number Generator) protocol
     """
     
-    def __init__(self, num_nodes=6, bitstring_length=8, seed=None):
+    def __init__(self, numNodes: int = 6, bitstringLength: int = 8,
+                 seed: int | None = None, useQuantumBackend: bool | None = None,
+                 consensusThreshold: int | None = None) -> None:
         """
         Initialize the QRiNG simulator
         
         Args:
-            num_nodes (int): Number of nodes in the network
-            bitstring_length (int): Length of quantum bitstrings
+            numNodes (int): Number of nodes in the network
+            bitstringLength (int): Length of quantum bitstrings
             seed (int): Random seed for reproducibility
+            useQuantumBackend (bool | None): If True, require Qiskit Aer.
+                If None (default), auto-detect: use Qiskit when available.
+            consensusThreshold (int | None): Minimum matching bits for a node
+                to be considered honest. Defaults to bitstringLength // 2.
         """
-        if seed is not None:
-            np.random.seed(seed)
+        self.rng = np.random.default_rng(seed)
         
-        self.num_nodes = num_nodes
-        self.bitstring_length = bitstring_length
-        self.nodes = list(range(num_nodes))
+        if useQuantumBackend is True and not _HAS_QISKIT:
+            raise RuntimeError("qiskit-aer is required for the quantum backend. "
+                               "Install with: pip install qiskit qiskit-aer")
+        self.useQuantumBackend = _HAS_QISKIT if useQuantumBackend is None else useQuantumBackend
+        
+        self.numNodes = numNodes
+        self.bitstringLength = bitstringLength
+        self.consensusThreshold = consensusThreshold if consensusThreshold is not None else bitstringLength // 2
+        self.nodes = list(range(numNodes))
         self.bitstrings = {}
-        self.vote_counts = np.zeros(num_nodes)
-        self.has_voted = np.zeros(num_nodes, dtype=bool)
-        self.honest_nodes = []
-        self.final_random_bits = None
+        self.voteCounts = np.zeros(numNodes)
+        self.hasVoted = np.zeros(numNodes, dtype=bool)
+        self.honestNodes = []
+        self.finalRandomBits = None
         
         # Generate quantum bitstrings through simulated QKD
-        self._generate_quantum_bitstrings()
+        self._generateQuantumBitstrings()
         
-    def _generate_quantum_bitstrings(self):
+    def _generateQuantumBitstrings(self) -> None:
         """
-        Simulate quantum key distribution to generate bitstrings for each node
-        Uses Bell state measurements and quantum entanglement simulation
+        Generate bitstrings for each node, dispatching to the quantum
+        backend (Qiskit Aer) when available or the classical fallback.
         """
-        print("Generating quantum bitstrings through simulated QKD...")
-        
+        if self.useQuantumBackend:
+            self._generateQiskitBitstrings()
+        else:
+            self._generateClassicalBitstrings()
+
+    def _generateQiskitBitstrings(self) -> None:
+        """
+        Generate bitstrings via Hadamard-gate circuits on AerSimulator.
+        Each node gets one independent circuit of `bitstringLength` qubits,
+        all placed in equal superposition and measured once.
+        """
+        print("Generating quantum bitstrings via Qiskit Aer...")
+        sim = AerSimulator(seed_simulator=int(self.rng.integers(0, 2**31)))
+
+        for node in self.nodes:
+            qc = QuantumCircuit(self.bitstringLength, self.bitstringLength)
+            qc.h(range(self.bitstringLength))
+            qc.measure(range(self.bitstringLength), range(self.bitstringLength))
+            result = sim.run(qc, shots=1).result()
+            bitstring_str = list(result.get_counts().keys())[0]
+            # Qiskit returns bitstrings in big-endian order
+            self.bitstrings[node] = np.array([int(b) for b in bitstring_str], dtype=int)
+
+        print(f"Generated {len(self.bitstrings)} quantum bitstrings (Qiskit Aer)")
+
+    def _generateClassicalBitstrings(self) -> None:
+        """
+        Classical PRNG fallback. Uses numpy default_rng to produce bitstrings.
+        NOTE: This does NOT provide true quantum randomness.
+        """
+        print("Generating classical bitstrings (PRNG fallback)...")
+
         for node in self.nodes:
             # Simulate quantum measurement outcomes
             # Each bit has quantum uncertainty with bias towards true randomness
-            quantum_bias = 0.5 + np.random.normal(0, 0.05)  # Slight deviation from perfect 50/50
+            quantum_bias = 0.5 + self.rng.normal(0, 0.05)  # Slight deviation from perfect 50/50
             quantum_bias = np.clip(quantum_bias, 0.3, 0.7)  # Keep within reasonable bounds
               # Generate bitstring with quantum-like properties
             bitstring = []
-            for bit_idx in range(self.bitstring_length):
+            for bit_idx in range(self.bitstringLength):
                 # Simulate quantum measurement with entanglement correlations
                 if bit_idx > 0:
                     # Add correlation with previous bit (simulating entanglement)
@@ -73,14 +128,14 @@ class QRiNGSimulator:
                     prob = quantum_bias
                 
                 # Generate quantum bit based on calculated probability
-                bit = 1 if np.random.random() < prob else 0
+                bit = 1 if self.rng.random() < prob else 0
                 bitstring.append(bit)
             
             self.bitstrings[node] = np.array(bitstring)
             
-        print(f"Generated {len(self.bitstrings)} quantum bitstrings")
+        print(f"Generated {len(self.bitstrings)} classical bitstrings (PRNG fallback)")
     
-    def calculate_bitstring_similarity(self, node1, node2):
+    def calculateBitstringSimilarity(self, node1: int, node2: int) -> int:
         """
         Calculate similarity between two nodes' bitstrings
         Implements the matching function from the smart contract
@@ -91,29 +146,29 @@ class QRiNGSimulator:
         matches = np.sum(self.bitstrings[node1] == self.bitstrings[node2])
         return matches
     
-    def perform_consensus_check(self, checking_node):
+    def performConsensusCheck(self, checking_node: int) -> bool:
         """
         Simulate the consensus check function from the smart contract
         Each node checks all other nodes' bitstrings
         """
-        if self.has_voted[checking_node]:
+        if self.hasVoted[checking_node]:
             return False
         
-        threshold = self.bitstring_length // 2
+        threshold = self.consensusThreshold
         
         for target_node in self.nodes:
             if target_node != checking_node:
                 # Calculate similarity between bitstrings
-                matches = self.calculate_bitstring_similarity(checking_node, target_node)
+                matches = self.calculateBitstringSimilarity(checking_node, target_node)
                 # If similarity exceeds threshold, increment vote count
                 if matches > threshold:
-                    self.vote_counts[target_node] += 1
+                    self.voteCounts[target_node] += 1
         
         # Mark this node as having voted to prevent double-voting
-        self.has_voted[checking_node] = True
+        self.hasVoted[checking_node] = True
         return True
     
-    def run_consensus_protocol(self):
+    def runConsensusProtocol(self) -> list[int]:
         """
         Run the complete consensus protocol with all nodes participating
         """
@@ -121,36 +176,36 @@ class QRiNGSimulator:
         
         # Each node performs checking
         for node in self.nodes:
-            self.perform_consensus_check(node)
-          # Determine honest nodes (those with vote count > num_nodes/2)
+            self.performConsensusCheck(node)
+          # Determine honest nodes (those with vote count > numNodes/2)
         threshold = len(self.nodes) // 2
-        self.honest_nodes = [node for node in self.nodes if self.vote_counts[node] > threshold]
+        self.honestNodes = [node for node in self.nodes if self.voteCounts[node] > threshold]
         
-        print(f"Honest nodes identified: {self.honest_nodes}")
-        return self.honest_nodes
+        print(f"Honest nodes identified: {self.honestNodes}")
+        return self.honestNodes
     
-    def generate_final_random_number(self):
+    def generateFinalRandomNumber(self) -> npt.NDArray[np.int_] | None:
         """
         Generate final random number by XOR-ing honest nodes' bitstrings
         Implements the randomNumber() function from the smart contract
         """
-        if not self.honest_nodes:
+        if not self.honestNodes:
             print("No honest nodes found!")
             return None
         
         # Initialize result bitstring with zeros
-        final_bits = np.zeros(self.bitstring_length, dtype=int)
+        final_bits = np.zeros(self.bitstringLength, dtype=int)
         
         # XOR all honest nodes' bitstrings to create final random number
-        for node in self.honest_nodes:
+        for node in self.honestNodes:
             final_bits = final_bits ^ self.bitstrings[node]  # Bitwise XOR operation
         
         # Store result and display
-        self.final_random_bits = final_bits
+        self.finalRandomBits = final_bits
         print(f"Final random number: {''.join(map(str, final_bits))}")
         return final_bits
     
-    def run_full_simulation(self):
+    def runFullSimulation(self) -> dict:
         """
         Run the complete QRiNG simulation
         """
@@ -159,23 +214,30 @@ class QRiNGSimulator:
         print("=" * 50)
         
         # Step 1: Consensus protocol
-        honest_nodes = self.run_consensus_protocol()
+        honestNodes = self.runConsensusProtocol()
         
         # Step 2: Generate final random number
-        final_random = self.generate_final_random_number()
+        final_random = self.generateFinalRandomNumber()
         
         print("=" * 50)
         print("SIMULATION COMPLETED")
         print("=" * 50)
         
         return {
-            'honest_nodes': honest_nodes,
-            'final_random': final_random,
-            'vote_counts': self.vote_counts,
+            'honest_nodes': honestNodes,
+            'final_random_number': final_random,
+            'vote_counts': self.voteCounts,
             'bitstrings': self.bitstrings
         }
 
-def create_qring_network_visualization(simulator, save_path):
+    # Deprecation aliases (old snake_case names still work)
+    calculate_bitstring_similarity = calculateBitstringSimilarity
+    perform_consensus_check = performConsensusCheck
+    run_consensus_protocol = runConsensusProtocol
+    generate_final_random_number = generateFinalRandomNumber
+    run_full_simulation = runFullSimulation
+
+def createQringNetworkVisualization(simulator: QRiNGSimulator, save_path: str) -> None:
     """
     Create a comprehensive network visualization of the QRiNG protocol
     """
@@ -191,7 +253,7 @@ def create_qring_network_visualization(simulator, save_path):
     ax1.set_title("QRiNG Network Topology & Consensus", fontsize=14, fontweight='bold')
     
     # Create network graph
-    G = nx.complete_graph(simulator.num_nodes)
+    G = nx.complete_graph(simulator.numNodes)
     pos = nx.circular_layout(G)
     
     # Draw edges (representing QKD links)
@@ -201,9 +263,9 @@ def create_qring_network_visualization(simulator, save_path):
     node_colors = []
     for node in simulator.nodes:
         # Green for honest nodes (passed consensus), yellow for suspicious, red for dishonest
-        if node in simulator.honest_nodes:
+        if node in simulator.honestNodes:
             node_colors.append('lightgreen')  # Honest nodes - passed consensus check
-        elif simulator.vote_counts[node] > 0:
+        elif simulator.voteCounts[node] > 0:
             node_colors.append('yellow')      # Suspicious nodes - some votes but not honest
         else:
             node_colors.append('lightcoral')  # Dishonest nodes - no votes received
@@ -212,7 +274,7 @@ def create_qring_network_visualization(simulator, save_path):
     nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=800, alpha=0.8)
     
     # Add node labels with vote counts for analysis
-    labels = {node: f"N{node}\n({int(simulator.vote_counts[node])})" for node in simulator.nodes}
+    labels = {node: f"N{node}\n({int(simulator.voteCounts[node])})" for node in simulator.nodes}
     nx.draw_networkx_labels(G, pos, labels, font_size=10)
     
     # Create legend explaining node color coding
@@ -233,23 +295,23 @@ def create_qring_network_visualization(simulator, save_path):
     ax2.set_title("Bitstring Similarity Matrix", fontsize=14, fontweight='bold')
     
     # Calculate pairwise similarity between all nodes' bitstrings
-    similarity_matrix = np.zeros((simulator.num_nodes, simulator.num_nodes))
-    for i in range(simulator.num_nodes):
-        for j in range(simulator.num_nodes):
+    similarity_matrix = np.zeros((simulator.numNodes, simulator.numNodes))
+    for i in range(simulator.numNodes):
+        for j in range(simulator.numNodes):
             if i != j:
                 # Use the same similarity calculation as consensus protocol
-                similarity_matrix[i, j] = simulator.calculate_bitstring_similarity(i, j)
+                similarity_matrix[i, j] = simulator.calculateBitstringSimilarity(i, j)
     
     # Create heatmap showing bitstring similarities (green = high similarity)
     im = ax2.imshow(similarity_matrix, cmap='RdYlGn', aspect='equal')
-    ax2.set_xticks(range(simulator.num_nodes))
-    ax2.set_yticks(range(simulator.num_nodes))
-    ax2.set_xticklabels([f'N{i}' for i in range(simulator.num_nodes)])
-    ax2.set_yticklabels([f'N{i}' for i in range(simulator.num_nodes)])
+    ax2.set_xticks(range(simulator.numNodes))
+    ax2.set_yticks(range(simulator.numNodes))
+    ax2.set_xticklabels([f'N{i}' for i in range(simulator.numNodes)])
+    ax2.set_yticklabels([f'N{i}' for i in range(simulator.numNodes)])
     
     # Overlay similarity values on heatmap for precise analysis
-    for i in range(simulator.num_nodes):
-        for j in range(simulator.num_nodes):
+    for i in range(simulator.numNodes):
+        for j in range(simulator.numNodes):
             if i != j:
                 ax2.text(j, i, f'{int(similarity_matrix[i, j])}', 
                         ha='center', va='center', fontweight='bold')
@@ -262,16 +324,16 @@ def create_qring_network_visualization(simulator, save_path):
     ax3 = fig.add_subplot(gs[1, 0])
     ax3.set_title("Node Vote Count Distribution", fontsize=14, fontweight='bold')
     
-    bars = ax3.bar([f'N{i}' for i in simulator.nodes], simulator.vote_counts, 
+    bars = ax3.bar([f'N{i}' for i in simulator.nodes], simulator.voteCounts, 
                    color=node_colors, alpha=0.7, edgecolor='black')
     
     # Add threshold line
-    threshold = simulator.num_nodes // 2
+    threshold = simulator.numNodes // 2
     ax3.axhline(y=threshold, color='red', linestyle='--', alpha=0.7, 
                label=f'Honesty Threshold ({threshold})')
     
     # Add value labels on bars
-    for bar, count in zip(bars, simulator.vote_counts):
+    for bar, count in zip(bars, simulator.voteCounts):
         height = bar.get_height()
         ax3.text(bar.get_x() + bar.get_width()/2., height + 0.05,
                 f'{int(count)}', ha='center', va='bottom', fontweight='bold')
@@ -289,14 +351,14 @@ def create_qring_network_visualization(simulator, save_path):
     bitstring_matrix = np.array([simulator.bitstrings[node] for node in simulator.nodes])
     
     im2 = ax4.imshow(bitstring_matrix, cmap='RdYlBu', aspect='auto')
-    ax4.set_yticks(range(simulator.num_nodes))
+    ax4.set_yticks(range(simulator.numNodes))
     ax4.set_yticklabels([f'N{i}' for i in simulator.nodes])
-    ax4.set_xticks(range(simulator.bitstring_length))
-    ax4.set_xticklabels([f'B{i}' for i in range(simulator.bitstring_length)])
+    ax4.set_xticks(range(simulator.bitstringLength))
+    ax4.set_xticklabels([f'B{i}' for i in range(simulator.bitstringLength)])
     
     # Add bit values to matrix
-    for i in range(simulator.num_nodes):
-        for j in range(simulator.bitstring_length):
+    for i in range(simulator.numNodes):
+        for j in range(simulator.bitstringLength):
             color = 'white' if bitstring_matrix[i, j] == 0 else 'black'
             ax4.text(j, i, f'{bitstring_matrix[i, j]}', 
                     ha='center', va='center', color=color, fontweight='bold')
@@ -337,8 +399,8 @@ def create_qring_network_visualization(simulator, save_path):
                      fc='black', ec='black')
     
     # Display the final random number result if available
-    if simulator.final_random_bits is not None:
-        final_str = ''.join(map(str, simulator.final_random_bits))
+    if simulator.finalRandomBits is not None:
+        final_str = ''.join(map(str, simulator.finalRandomBits))
         ax5.text(9, 2, f"Result: {final_str}", ha='center', va='center',
                 fontsize=12, fontweight='bold', 
                 bbox=dict(boxstyle="round,pad=0.3", facecolor='yellow', alpha=0.7))
@@ -365,11 +427,14 @@ def create_qring_network_visualization(simulator, save_path):
     plt.close(fig)
     print(f"QRiNG network visualization saved to {save_path}")
 
-def create_quantum_measurement_visualization(simulator, save_path):
+def createQuantumMeasurementVisualization(simulator: QRiNGSimulator, save_path: str,
+                                          seed: int | None = None) -> None:
     """
     Create visualization showing quantum measurement process and Bell state correlations
     """
     print("Creating quantum measurement visualization...")
+    
+    rng = np.random.default_rng(seed)
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     
@@ -382,9 +447,9 @@ def create_quantum_measurement_visualization(simulator, save_path):
     alice_measurements = []
     bob_measurements = []
     
-    # Generate correlated measurements (simulating |Φ+⟩ = (|00⟩ + |11⟩)/√2)
+    # Generate correlated measurements (simulating |Phi+> = (|00> + |11>)/sqrt(2))
     for _ in range(num_measurements):
-        if np.random.random() < 0.5:
+        if rng.random() < 0.5:
             # Both measure 0
             alice_measurements.append(0)
             bob_measurements.append(0)
@@ -396,9 +461,9 @@ def create_quantum_measurement_visualization(simulator, save_path):
     # Add some noise to simulate real quantum systems
     noise_level = 0.05
     for i in range(len(alice_measurements)):
-        if np.random.random() < noise_level:
+        if rng.random() < noise_level:
             alice_measurements[i] = 1 - alice_measurements[i]
-        if np.random.random() < noise_level:
+        if rng.random() < noise_level:
             bob_measurements[i] = 1 - bob_measurements[i]
     
     # Plot correlation
@@ -407,8 +472,8 @@ def create_quantum_measurement_visualization(simulator, save_path):
         correlation_data.append([a, b])
     
     correlation_matrix = np.array(correlation_data)
-    scatter = ax1.scatter(correlation_matrix[:, 0] + np.random.normal(0, 0.05, len(correlation_matrix)),
-                         correlation_matrix[:, 1] + np.random.normal(0, 0.05, len(correlation_matrix)),
+    scatter = ax1.scatter(correlation_matrix[:, 0] + rng.normal(0, 0.05, len(correlation_matrix)),
+                         correlation_matrix[:, 1] + rng.normal(0, 0.05, len(correlation_matrix)),
                          alpha=0.6, c=range(len(correlation_matrix)), cmap='viridis')
     
     ax1.set_xlabel("Alice's Measurement")
@@ -482,14 +547,14 @@ def create_quantum_measurement_visualization(simulator, save_path):
     ax4 = axes[1, 1]
     ax4.set_title("XOR Aggregation Process", fontsize=14, fontweight='bold')
     
-    if simulator.honest_nodes and len(simulator.honest_nodes) > 1:
+    if simulator.honestNodes and len(simulator.honestNodes) > 1:
         # Show step-by-step XOR process
-        y_pos = len(simulator.honest_nodes)
-        colors = plt.cm.Set3(np.linspace(0, 1, len(simulator.honest_nodes)))
+        y_pos = len(simulator.honestNodes)
+        colors = plt.cm.Set3(np.linspace(0, 1, len(simulator.honestNodes)))
         
-        cumulative_xor = np.zeros(simulator.bitstring_length, dtype=int)
+        cumulative_xor = np.zeros(simulator.bitstringLength, dtype=int)
         
-        for i, node in enumerate(simulator.honest_nodes):
+        for i, node in enumerate(simulator.honestNodes):
             bitstring = simulator.bitstrings[node]
             
             # Display individual bitstring
@@ -520,14 +585,14 @@ def create_quantum_measurement_visualization(simulator, save_path):
             ax4.text(j + 0.5, -1.5, str(bit), 
                     ha='center', va='center', fontweight='bold', fontsize=12)
         
-        ax4.set_xlim(-1, simulator.bitstring_length)
-        ax4.set_ylim(-3, len(simulator.honest_nodes))
+        ax4.set_xlim(-1, simulator.bitstringLength)
+        ax4.set_ylim(-3, len(simulator.honestNodes))
         ax4.set_xlabel('Bit Position')
         ax4.set_ylabel('Node / Result')
         
         # Add XOR symbols
-        for i in range(len(simulator.honest_nodes) - 1):
-            ax4.text(simulator.bitstring_length + 0.5, y_pos - i - 1.5, '⊕', 
+        for i in range(len(simulator.honestNodes) - 1):
+            ax4.text(simulator.bitstringLength + 0.5, y_pos - i - 1.5, '⊕', 
                     ha='center', va='center', fontsize=20, fontweight='bold')
     
     ax4.axis('off')
@@ -537,7 +602,7 @@ def create_quantum_measurement_visualization(simulator, save_path):
     plt.close(fig)
     print(f"Quantum measurement visualization saved to {save_path}")
 
-def run_simulation_and_create_visualizations():
+def runSimulationAndCreateVisualizations() -> tuple[QRiNGSimulator, dict]:
     """
     Run the complete QRiNG simulation and generate all visualizations
     """
@@ -545,10 +610,10 @@ def run_simulation_and_create_visualizations():
     print("=" * 60)
     
     # Initialize simulator with reproducible seed
-    simulator = QRiNGSimulator(num_nodes=6, bitstring_length=8, seed=42)
+    simulator = QRiNGSimulator(numNodes=6, bitstringLength=8, seed=42)
     
     # Run the simulation
-    results = simulator.run_full_simulation()
+    results = simulator.runFullSimulation()
     
     # Create output directory
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Plots")
@@ -557,18 +622,18 @@ def run_simulation_and_create_visualizations():
     network_viz_path = os.path.join(output_dir, "qring_simulator_network.png")
     quantum_viz_path = os.path.join(output_dir, "qring_simulator_quantum.png")
     
-    create_qring_network_visualization(simulator, network_viz_path)
-    create_quantum_measurement_visualization(simulator, quantum_viz_path)
+    createQringNetworkVisualization(simulator, network_viz_path)
+    createQuantumMeasurementVisualization(simulator, quantum_viz_path)
     
     # Print comprehensive simulation summary for analysis
     print("\n" + "=" * 60)
     print("SIMULATION SUMMARY")
     print("=" * 60)
-    print(f"Total nodes: {simulator.num_nodes}")
-    print(f"Bitstring length: {simulator.bitstring_length}")
-    print(f"Honest nodes: {len(simulator.honest_nodes)} ({simulator.honest_nodes})")
-    print(f"Final random number: {''.join(map(str, simulator.final_random_bits)) if simulator.final_random_bits is not None else 'None'}")
-    print(f"Vote counts: {dict(zip(simulator.nodes, simulator.vote_counts))}")
+    print(f"Total nodes: {simulator.numNodes}")
+    print(f"Bitstring length: {simulator.bitstringLength}")
+    print(f"Honest nodes: {len(simulator.honestNodes)} ({simulator.honestNodes})")
+    print(f"Final random number: {''.join(map(str, simulator.finalRandomBits)) if simulator.finalRandomBits is not None else 'None'}")
+    print(f"Vote counts: {dict(zip(simulator.nodes, simulator.voteCounts))}")
     
     # List generated visualization files for user reference
     print("\nVisualization files created:")
@@ -577,10 +642,15 @@ def run_simulation_and_create_visualizations():
     
     return simulator, results
 
+# Deprecation aliases for standalone functions
+create_qring_network_visualization = createQringNetworkVisualization
+create_quantum_measurement_visualization = createQuantumMeasurementVisualization
+run_simulation_and_create_visualizations = runSimulationAndCreateVisualizations
+
 if __name__ == "__main__":
     try:
         # Execute main simulation and visualization generation
-        simulator, results = run_simulation_and_create_visualizations()
+        simulator, results = runSimulationAndCreateVisualizations()
         print("\nQRiNG simulation completed successfully!")
     except Exception as e:
         print(f"Error during simulation: {e}")

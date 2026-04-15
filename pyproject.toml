@@ -30,14 +30,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+quantum = [
+    "qiskit>=1.0",
+    "qiskit-aer>=0.13",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "qiskit>=1.0",
+    "qiskit-aer>=0.13",
 ]
 
 [project.scripts]
-qring-simulate = "qring.simulator:run_simulation_and_create_visualizations"
-qring-emulate = "qring.emulator:run_emulation_demo"
+qring-simulate = "qring.simulator:runSimulationAndCreateVisualizations"
+qring-emulate = "qring.emulator:runEmulationDemo"
 qring-visualize = "qring.visualization:main"
 
 [tool.pytest.ini_options]
@@ -46,3 +54,16 @@ addopts = "-v --tb=short"
 
 [tool.setuptools.packages.find]
 include = ["qring*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
