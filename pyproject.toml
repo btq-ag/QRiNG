@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "qring"
 version = "0.1.0"
-description = "Quantum Random Number Generator protocol combining QKD with blockchain consensus"
+description = "On-chain protocol for verifiable random numbers from Hadamard-circuit measurements"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
