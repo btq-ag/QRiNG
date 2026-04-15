@@ -11,7 +11,7 @@ and Python emulator. The animations show:
 4. Cross-validation between simulator and emulator
 5. Final random number generation
 
-All animations are professionally rendered with smooth transitions and detailed annotations.
+All animations use smooth transitions and detailed annotations.
 
 Author: Jeffrey Morais, BTQ
 """
@@ -21,13 +21,11 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.patches import Circle, Rectangle, FancyBboxPatch, Arrow, Ellipse
+from matplotlib.patches import Circle, Rectangle, FancyBboxPatch
 import matplotlib.patches as patches
 import networkx as nx
 import seaborn as sns
 import os
-from datetime import datetime
-import json
 
 # Import QRiNG classes
 from qring.simulator import QRiNGSimulator
@@ -475,7 +473,7 @@ class QRiNGVisualizer:
         test_addresses = [f"0x{i:040x}" for i in range(4)]
 
         # Initialize emulator with admin set in constructor (mirrors Solidity)
-        emulator = QRiNGEmulator(bitstringLength=6, admin_address=test_addresses[0])
+        emulator = QRiNGEmulator(bitstringLength=6, adminAddress=test_addresses[0])
         test_bitstrings = [[1, 0, 1, 1, 0, 1], [0, 1, 1, 0, 1, 0], 
                           [1, 1, 0, 1, 0, 1], [0, 0, 1, 1, 1, 0]]
         
@@ -684,7 +682,7 @@ class QRiNGVisualizer:
         # Initialize both simulator and emulator
         simulator = QRiNGSimulator(numNodes=4, bitstringLength=6, seed=42)
         test_addresses = [f"0x{i:040x}" for i in range(4)]
-        emulator = QRiNGEmulator(bitstringLength=6, admin_address=test_addresses[0])
+        emulator = QRiNGEmulator(bitstringLength=6, adminAddress=test_addresses[0])
         
         # Run simulator
         for node in simulator.nodes:

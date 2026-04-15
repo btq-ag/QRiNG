@@ -1,20 +1,20 @@
 # QRiNG: Quantum Random Number Generator Protocol
-###### A hybrid quantum-blockchain protocol for verifiable quantum random number generation using Ethereum smart contracts and Quantum Key Distribution (QKD).
+###### Verifiable quantum random number generation using Ethereum smart contracts and QKD.
 
 <p align="center">
-  <img src="https://github.com/IsolatedSingularity/QRiNG/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/pip%20install-%20--e%20.-brightgreen" alt="pip install -e .">
+  <a href="https://github.com/btq-ag/QRiNG/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/btq-ag/QRiNG/ci.yml?branch=main&label=CI&logo=github" alt="CI"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/install-pip%20install%20--e%20.%5Bdev%5D-brightgreen" alt="pip install"></a>
 </p>
 
 ![QKD Process Animation](Logos/QRiNG_extended_dark.png)
 
 ## Objective
 
-This repository implements the **QRiNG (Quantum Random Number Generator)** protocol, a novel approach that combines Quantum Key Distribution (QKD) with blockchain consensus mechanisms to produce cryptographically secure and verifiable quantum randomness. The protocol leverages Ethereum smart contracts to ensure transparency, immutability, and collective validation of quantum-generated random numbers.
+QRiNG generates verifiable quantum random numbers by combining QKD bitstring generation with on-chain majority-vote consensus. Built at BTQ by Jeffrey Morais. 58 tests across simulator and emulator, CI on Python 3.10, 3.11, 3.12.
 
-The core innovation of QRiNG lies in bridging quantum physics with distributed ledger technology. By encoding quantum measurement outcomes into blockchain transactions, we create a tamper-proof record of genuine quantum randomness that can be independently verified by any participant in the network.
+The repository contains a Qiskit-based QRNG simulator, a Python emulator that replicates the Solidity contract logic, and an animated visualization suite. Participants submit quantum-generated bitstrings to an Ethereum smart contract, validators run pairwise correlation checks, and honest nodes are identified by majority vote. The final random output is the XOR aggregate of all honest bitstrings.
 
 The protocol exploits the fundamental indeterminacy of quantum measurement. For a qubit prepared in superposition state |ψ⟩ = α|0⟩ + β|1⟩ (where |α|² + |β|² = 1), measurement outcomes are governed by Born's rule:
 
@@ -58,7 +58,7 @@ The consensus mechanism classifies node $i$ as honest when $\text{VoteCount}(i) 
 
 $$R[k] = \bigoplus_{i \in V_{\text{honest}}} b_i^{(k)} \pmod{2}, \quad k = 1, \ldots, \ell$$
 
-This construction preserves entropy—if at least one honest node contributes true quantum randomness, the output maintains full cryptographic security regardless of adversarial behavior from other participants.
+This construction preserves entropy: if at least one honest node contributes true quantum randomness, the output maintains full cryptographic security regardless of adversarial behavior from other participants.
 
 ## Code Functionality
 
@@ -130,7 +130,7 @@ class QRiNGEmulator:
 ```
 
 ### 3. Consensus Mechanism Implementation
-The protocol implements Byzantine fault-tolerant consensus for validating quantum measurements and identifying honest participants. Each node computes pairwise similarity scores $S_{ij} = \sum_{k=1}^{\ell} \mathbb{1}[b_i^{(k)} = b_j^{(k)}]$ against all other nodes. When $S_{ij} > \ell/2$, the checking node casts a vote for the target as honest. After all validations complete, nodes with $\text{VoteCount} > n/2$ are classified as honest, providing tolerance against up to $\lfloor(n-1)/3\rfloor$ Byzantine adversaries. The final random output $R = \bigoplus_{j \in V_{\text{honest}}} \mathbf{b}_j$ preserves full entropy if at least one honest node contributes true quantum randomness.
+The protocol implements majority-vote consensus for validating quantum measurements and identifying honest participants. Each node computes pairwise similarity scores $S_{ij} = \sum_{k=1}^{\ell} \mathbb{1}[b_i^{(k)} = b_j^{(k)}]$ against all other nodes. When $S_{ij}$ exceeds a configurable `consensusThreshold` (default $\ell/2$), the checking node casts a vote for the target as honest. After all validations complete, nodes with $\text{VoteCount} > n/2$ are classified as honest. The final random output $R = \bigoplus_{j \in V_{\text{honest}}} \mathbf{b}_j$ preserves full entropy if at least one honest node contributes true quantum randomness.
 
 ```python
 def performConsensusCheck(self, checking_node):
@@ -156,8 +156,8 @@ def generateFinalRandomNumber(self):
     return finalBits
 ```
 
-### 4. Advanced Visualization Suite
-The `qring/visualization.py` creates professional animated visualizations demonstrating the complete protocol lifecycle. Quantum state evolution under decoherence follows $|\psi(t)\rangle \propto e^{-t/T_2}(\cos(\omega t)|0\rangle + \sin(\omega t)|1\rangle)$ where $T_2$ is the coherence time. Network topology renders nodes in circular layout with color-coded status (green = honest, red = dishonest) and oscillating quantum channel intensities $\alpha = (1 + \sin(\omega t))/2$. Real-time statistical displays show similarity heatmaps $S_{ij}$, vote distributions, and bit frequency convergence toward the theoretical expectation $P(1) = 0.5$.
+### 4. Visualization Suite
+The `qring/visualization.py` creates animated GIF visualizations demonstrating the protocol lifecycle. Network topology renders nodes in circular layout with color-coded consensus status (green = honest, red = dishonest). Animations cover QKD bitstring exchange, pairwise consensus voting, smart contract transaction flow, and a side-by-side comparison of the simulator and emulator outputs.
 
 ```python
 class QRiNGVisualizer:
@@ -211,37 +211,33 @@ def runFullProtocol(bitstrings, addresses, admin):
 
 ## Results
 
-The QRiNG implementation successfully demonstrates complete quantum-blockchain integration, achieving near-theoretical performance across all metrics.
+The following visualizations are generated by the simulator, emulator, and visualization suite.
 
 ### Quantum Measurement Process
 
 ![QKD Process Animation](Plots/qkd_process.gif)
 
-The QKD animation visualizes the complete quantum random number generation pipeline. During state preparation, qubits are initialized in equal superposition |+⟩ = (|0⟩ + |1⟩)/√2, yielding measurement probabilities $P(0) = P(1) = 0.5$. The simulation achieves measured entropy $H \approx 0.99$ bits per qubit, approaching the theoretical maximum of 1 bit. Across 1000 simulated measurements, the observed bit frequency converged to $\bar{p} = 0.501 \pm 0.016$, consistent with true quantum randomness. Basis reconciliation between participants successfully filtered mismatched measurements, retaining approximately 50% of raw bits as expected from conjugate basis selection.
+The QKD animation shows the quantum random number generation pipeline. Qubits are initialized in equal superposition |+⟩ = (|0⟩ + |1⟩)/√2, yielding measurement probabilities $P(0) = P(1) = 0.5$. When Qiskit Aer is installed, bitstrings are generated via actual Hadamard + measure circuits on `AerSimulator`; otherwise a seeded PRNG fallback is used.
 
 ### Smart Contract Execution
 
 ![Smart Contract Execution](Plots/smart_contract_execution.gif)
 
-The blockchain integration animation demonstrates the full transaction lifecycle from quantum data commitment through consensus validation. Gas consumption analysis reveals total costs of $G_{\text{total}} \approx 150,000$ gas for a typical 6-node network with 8-bit strings, breaking down as: 25,000 (bitstring storage) + 300,000 (voter registration) + 51,000 (consensus checks). The emulator logged 100% transaction success rate across all test scenarios, with average block confirmation simulated at 12 seconds. Event emissions provided complete audit trails, enabling off-chain verification of every protocol step.
+The emulator animation demonstrates the full transaction lifecycle: bitstring upload, voter registration, pairwise consensus checks, voting termination, and random number extraction. Gas costs are estimated per the Ethereum model (base 21,000 + per-voter and per-bit storage costs). The emulator logs every transaction with function name, caller, gas, and success/failure.
 
 ### Static Visualization Results
 
 ![Quantum Network](Plots/qring_simulator_network.png)
 
-The network topology visualization above displays consensus results for a 6-node simulation. Nodes achieving $\text{VoteCount} > 3$ (majority threshold) are rendered in green, indicating honest classification. In this run, 4 of 6 nodes passed validation with similarity scores $S_{ij} \in [5, 7]$ against a threshold of $\ell/2 = 4$. The two excluded nodes exhibited anomalously low correlation ($S < 3$), correctly identified as potential adversaries.
+Network topology visualization showing consensus results for a 6-node simulation. Green nodes passed majority-vote validation ($\text{VoteCount} > n/2$); red nodes did not. The similarity heatmap displays pairwise Hamming-distance-based correlation scores.
 
 ![Quantum States](Plots/qring_simulator_quantum.png)
 
-Quantum state analysis confirms the statistical quality of generated bitstrings. The Bell state correlation plot shows measurement outcomes clustered along the diagonal, indicating successful entanglement simulation with correlation coefficient $r = 0.94$. Bit frequency histograms demonstrate uniform distribution across all positions, with chi-square test yielding $\chi^2 = 4.2$ ($p = 0.65$), failing to reject the null hypothesis of true randomness.
+Bitstring analysis plots: per-node bit frequency, quantum state evolution curves, and XOR aggregation step-by-step breakdown. Correlation scatter uses classically simulated paired measurements with configurable noise.
 
 ![Contract Execution](Plots/qring_emulator_execution.png)
 
-The execution analysis displays gas consumption per function call and cumulative transaction costs. The pairwise validation phase dominates at $O(n^2)$ complexity, suggesting optimization opportunities for larger networks through batched verification or Merkle proof structures.
-
-### Performance Summary
-
-The implementation achieves quantum entropy $H > 0.99$ bits/qubit with 95% consensus success rate under normal conditions. Gas efficiency averages 150,000 gas per random number generation, with verification completing in under 2 seconds for 100-qubit measurements. The architecture supports up to 100 participants before quadratic consensus costs become prohibitive.
+Emulator execution analysis: gas consumption per function call, voter state matrix, bitstring similarity heatmap, and contract event log. The pairwise validation phase scales at $O(n^2)$.
 
 ## Smart Contract Integration
 
@@ -317,13 +313,31 @@ contract QRiNG {
 }
 ```
 
+## Project Structure
+
+```
+qring/
+  __init__.py          # Package exports
+  simulator.py         # QKD simulation + consensus
+  emulator.py          # Solidity contract emulation
+  visualization.py     # Animated GIF generation
+contracts/
+  originalQRiNG.sol    # Ethereum smart contract
+tests/
+  test_simulator.py    # 27 simulator tests
+  test_emulator.py     # 31 emulator tests
+examples/
+  exampleSimulation.py # Basic simulation demo
+  exampleEmulation.py  # Emulator demo
+```
+
 ## Caveats
 
 - This implementation simulates ideal quantum measurements; real quantum devices introduce noise, decoherence, and measurement errors requiring additional error correction.
 
 - The consensus mechanism assumes honest majority and is optimized for small networks (< 100 participants). Production deployment would require gas optimization and layer-2 scaling solutions.
 
-- True quantum security guarantees require genuine quantum hardware—classical simulation provides educational and prototyping value but not information-theoretic security.
+- True quantum security guarantees require genuine quantum hardware; classical simulation provides educational and prototyping value but not information-theoretic security.
 
 ## Next Steps
 
@@ -344,5 +358,4 @@ contract QRiNG {
 
 ---
 
-*QRiNG Protocol - Bridging Quantum Physics and Blockchain Technology*  
-*© 2024-2026 - Open Source Implementation for Research and Education*
+*© 2024-2026 BTQ Technologies, MIT License*

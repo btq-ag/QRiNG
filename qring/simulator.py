@@ -22,12 +22,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyBboxPatch
 import networkx as nx
-import seaborn as sns
 import os
-from datetime import datetime
 
 try:
-    from qiskit import QuantumCircuit
+    from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
     from qiskit_aer import AerSimulator
     _HAS_QISKIT = True
 except ImportError:
@@ -93,9 +91,11 @@ class QRiNGSimulator:
         sim = AerSimulator(seed_simulator=int(self.rng.integers(0, 2**31)))
 
         for node in self.nodes:
-            qc = QuantumCircuit(self.bitstringLength, self.bitstringLength)
-            qc.h(range(self.bitstringLength))
-            qc.measure(range(self.bitstringLength), range(self.bitstringLength))
+            dataQubits = QuantumRegister(self.bitstringLength, 'dataQubits')
+            classicalBits = ClassicalRegister(self.bitstringLength, 'classicalBits')
+            qc = QuantumCircuit(dataQubits, classicalBits)
+            qc.h(dataQubits)
+            qc.measure(dataQubits, classicalBits)
             result = sim.run(qc, shots=1).result()
             bitstring_str = list(result.get_counts().keys())[0]
             # Qiskit returns bitstrings in big-endian order
@@ -118,9 +118,9 @@ class QRiNGSimulator:
               # Generate bitstring with quantum-like properties
             bitstring = []
             for bit_idx in range(self.bitstringLength):
-                # Simulate quantum measurement with entanglement correlations
+                # Simulate quantum measurement with serial correlations
                 if bit_idx > 0:
-                    # Add correlation with previous bit (simulating entanglement)
+                    # Add correlation with previous bit
                     correlation_factor = 0.15 * np.sin(bit_idx * np.pi / 4)
                     prob = quantum_bias + correlation_factor * (2 * bitstring[-1] - 1)
                     prob = np.clip(prob, 0.1, 0.9)  # Ensure valid probability range
@@ -146,26 +146,26 @@ class QRiNGSimulator:
         matches = np.sum(self.bitstrings[node1] == self.bitstrings[node2])
         return matches
     
-    def performConsensusCheck(self, checking_node: int) -> bool:
+    def performConsensusCheck(self, checkingNode: int) -> bool:
         """
         Simulate the consensus check function from the smart contract
         Each node checks all other nodes' bitstrings
         """
-        if self.hasVoted[checking_node]:
+        if self.hasVoted[checkingNode]:
             return False
         
         threshold = self.consensusThreshold
         
         for target_node in self.nodes:
-            if target_node != checking_node:
+            if target_node != checkingNode:
                 # Calculate similarity between bitstrings
-                matches = self.calculateBitstringSimilarity(checking_node, target_node)
+                matches = self.calculateBitstringSimilarity(checkingNode, target_node)
                 # If similarity exceeds threshold, increment vote count
                 if matches > threshold:
                     self.voteCounts[target_node] += 1
         
         # Mark this node as having voted to prevent double-voting
-        self.hasVoted[checking_node] = True
+        self.hasVoted[checkingNode] = True
         return True
     
     def runConsensusProtocol(self) -> list[int]:
@@ -237,7 +237,7 @@ class QRiNGSimulator:
     generate_final_random_number = generateFinalRandomNumber
     run_full_simulation = runFullSimulation
 
-def createQringNetworkVisualization(simulator: QRiNGSimulator, save_path: str) -> None:
+def createQringNetworkVisualization(simulator: QRiNGSimulator, savePath: str) -> None:
     """
     Create a comprehensive network visualization of the QRiNG protocol
     """
@@ -423,14 +423,14 @@ def createQringNetworkVisualization(simulator: QRiNGSimulator, save_path: str) -
     
     # Save the figure
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(savePath, dpi=300, bbox_inches='tight')
     plt.close(fig)
-    print(f"QRiNG network visualization saved to {save_path}")
+    print(f"QRiNG network visualization saved to {savePath}")
 
-def createQuantumMeasurementVisualization(simulator: QRiNGSimulator, save_path: str,
+def createQuantumMeasurementVisualization(simulator: QRiNGSimulator, savePath: str,
                                           seed: int | None = None) -> None:
     """
-    Create visualization showing quantum measurement process and Bell state correlations
+    Create visualization showing quantum measurement process and correlated pair scatter
     """
     print("Creating quantum measurement visualization...")
     
@@ -438,16 +438,16 @@ def createQuantumMeasurementVisualization(simulator: QRiNGSimulator, save_path: 
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     
-    # 1. Bell state measurement simulation
+    # 1. Correlated pair measurement simulation
     ax1 = axes[0, 0]
-    ax1.set_title("Bell State Measurement Simulation", fontsize=14, fontweight='bold')
+    ax1.set_title("Correlated Pair Measurement Simulation", fontsize=14, fontweight='bold')
     
-    # Simulate entangled pair measurements
+    # Simulate classically correlated pair measurements
     num_measurements = 1000
     alice_measurements = []
     bob_measurements = []
     
-    # Generate correlated measurements (simulating |Phi+> = (|00> + |11>)/sqrt(2))
+    # Generate correlated measurements (both parties measure same random bit, plus noise)
     for _ in range(num_measurements):
         if rng.random() < 0.5:
             # Both measure 0
@@ -598,9 +598,9 @@ def createQuantumMeasurementVisualization(simulator: QRiNGSimulator, save_path: 
     ax4.axis('off')
     
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(savePath, dpi=300, bbox_inches='tight')
     plt.close(fig)
-    print(f"Quantum measurement visualization saved to {save_path}")
+    print(f"Quantum measurement visualization saved to {savePath}")
 
 def runSimulationAndCreateVisualizations() -> tuple[QRiNGSimulator, dict]:
     """

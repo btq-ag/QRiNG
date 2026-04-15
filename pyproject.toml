@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Physics",
 ]
+keywords = ["quantum", "random-number-generator", "qkd", "blockchain", "ethereum", "qiskit"]
 dependencies = [
     "numpy>=1.24.0",
     "matplotlib>=3.7.0",
@@ -28,6 +29,11 @@ dependencies = [
     "seaborn>=0.12.0",
     "pillow>=9.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/btq-ag/QRiNG"
+Repository = "https://github.com/btq-ag/QRiNG"
+Issues = "https://github.com/btq-ag/QRiNG/issues"
 
 [project.optional-dependencies]
 quantum = [

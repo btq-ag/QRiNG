@@ -228,7 +228,7 @@ class QRiNGEmulator:
             if self.voters[fromNode]['hasVoted']:
                 raise Exception("Voter has already voted")
               # Perform the check logic (exact replication of Solidity code)
-            bitstringLength = self.consensusThreshold  # Configurable threshold
+            bitstringThreshold = self.consensusThreshold  # Configurable threshold
             
             # Compare this voter's bitstring with all other voters
             for i in range(len(self.voters)):
@@ -241,7 +241,7 @@ class QRiNGEmulator:
                             add += 1
                     
                     # If correlation exceeds threshold, increment vote count
-                    if add > bitstringLength:
+                    if add > bitstringThreshold:
                         self.voters[i]['voteCount'] += 1
             
             # Mark as voted to prevent double-voting
